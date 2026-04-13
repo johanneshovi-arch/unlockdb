@@ -327,6 +327,120 @@ function getDrillDownRows(selectedChange, previousData, currentData) {
   return [];
 }
 
+function normalizeCellForTableSearch(v) {
+  if (v === null || v === undefined || v === "") return "";
+  return String(v).trim().toLowerCase();
+}
+
+function rowMatchesTableSearch(row, columns, query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  for (const col of columns) {
+    if (normalizeCellForTableSearch(row[col.key]).includes(q)) return true;
+  }
+  return false;
+}
+
+function rowMatchesColumnContainsFilter(row, columnKey, filterRaw) {
+  const q = filterRaw.trim().toLowerCase();
+  if (!columnKey || !q) return true;
+  return normalizeCellForTableSearch(row[columnKey]).includes(q);
+}
+
+function isCurrentRowProblemForSelectedChange(
+  selectedChange,
+  previousData,
+  currentData,
+  rowIndex
+) {
+  if (!selectedChange?.columnKey || !selectedChange.drillKind) return false;
+  const key = selectedChange.columnKey;
+  const row = currentData[rowIndex];
+  if (!row) return false;
+
+  if (selectedChange.drillKind === "null_increase") {
+    const v = row[key];
+    return v === null || v === undefined || v === "";
+  }
+
+  if (selectedChange.drillKind === "new_values") {
+    const prevSet = valueSetNonNull(previousData, key);
+    const v = row[key];
+    if (v === null || v === undefined || v === "") return false;
+    return !prevSet.has(v);
+  }
+
+  if (selectedChange.drillKind === "removed_values") {
+    const prevRow = previousData[rowIndex];
+    const currSet = valueSetNonNull(currentData, key);
+    if (!prevRow) return false;
+    const pv = prevRow[key];
+    if (pv === null || pv === undefined || pv === "") return false;
+    return !currSet.has(pv);
+  }
+
+  return false;
+}
+
+function computeProblemRowCount(selectedChange, previousData, currentData) {
+  if (!selectedChange?.columnKey || !selectedChange.drillKind) return null;
+  if (previousData.length === 0 || currentData.length === 0) return null;
+  let n = 0;
+  for (let i = 0; i < currentData.length; i++) {
+    if (
+      isCurrentRowProblemForSelectedChange(
+        selectedChange,
+        previousData,
+        currentData,
+        i
+      )
+    ) {
+      n++;
+    }
+  }
+  return n;
+}
+
+function computeColumnValueChurn(previousData, currentData, key) {
+  const prevSet = valueSetNonNull(previousData, key);
+  const currSet = valueSetNonNull(currentData, key);
+  const addedValues = [...currSet].filter((x) => !prevSet.has(x));
+  const removedValues = [...prevSet].filter((x) => !currSet.has(x));
+  let newValueRowCount = 0;
+  for (const row of currentData) {
+    const v = row[key];
+    if (v === null || v === undefined || v === "") continue;
+    if (!prevSet.has(v)) newValueRowCount++;
+  }
+  let removedPrevRowCount = 0;
+  for (const row of previousData) {
+    const v = row[key];
+    if (v === null || v === undefined || v === "") continue;
+    if (!currSet.has(v)) removedPrevRowCount++;
+  }
+  return {
+    addedValues,
+    removedValues,
+    newValueRowCount,
+    removedPrevRowCount,
+  };
+}
+
+function sampleColumnValuesForDisplay(data, key, limit = 6) {
+  const out = [];
+  const seen = new Set();
+  for (const row of data) {
+    const v = row[key];
+    if (v === null || v === undefined || v === "") continue;
+    const sk = String(v);
+    if (seen.has(sk)) continue;
+    seen.add(sk);
+    out.push(v);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 function buildStatChanges(riskFindings, diffSummaryBullets, columns) {
   const items = [];
   const risksSorted = [...riskFindings].sort((a, b) =>
@@ -1281,6 +1395,11 @@ function App() {
   const [history, setHistory] = useState([]);
   const [dismissed, setDismissed] = useState(false);
   const drillDownRef = useRef(null);
+  const [gridSearchQuery, setGridSearchQuery] = useState("");
+  const [gridFilterColumnKey, setGridFilterColumnKey] = useState("");
+  const [gridFilterValue, setGridFilterValue] = useState("");
+  const [problemRowsOnly, setProblemRowsOnly] = useState(false);
+  const [columnDetailKey, setColumnDetailKey] = useState(null);
 
   const columns = useMemo(
     () => buildColumnsFromCurrentOnly(currentData),
@@ -1342,6 +1461,98 @@ function App() {
     return getDrillDownRows(selectedChange, previousData, currentData);
   }, [selectedChange, previousData, currentData]);
 
+  const problemRowCountForExplorer = useMemo(
+    () => computeProblemRowCount(selectedChange, previousData, currentData),
+    [selectedChange, previousData, currentData]
+  );
+
+  const explorerFilteredIndices = useMemo(() => {
+    if (!currentData.length || !columns.length) return [];
+    const out = [];
+    const useProblem =
+      problemRowsOnly &&
+      selectedChange?.columnKey &&
+      selectedChange?.drillKind &&
+      previousData.length > 0;
+    for (let i = 0; i < currentData.length; i++) {
+      if (
+        useProblem &&
+        !isCurrentRowProblemForSelectedChange(
+          selectedChange,
+          previousData,
+          currentData,
+          i
+        )
+      ) {
+        continue;
+      }
+      const row = currentData[i];
+      if (!rowMatchesTableSearch(row, columns, gridSearchQuery)) continue;
+      if (
+        !rowMatchesColumnContainsFilter(
+          row,
+          gridFilterColumnKey,
+          gridFilterValue
+        )
+      ) {
+        continue;
+      }
+      out.push(i);
+    }
+    return out;
+  }, [
+    currentData,
+    columns,
+    gridSearchQuery,
+    gridFilterColumnKey,
+    gridFilterValue,
+    problemRowsOnly,
+    selectedChange,
+    previousData,
+  ]);
+
+  const columnExplorerDetail = useMemo(() => {
+    if (!columnDetailKey) return null;
+    const col = columns.find((c) => c.key === columnDetailKey);
+    if (!col) return null;
+    const ins = insights.find((i) => i.key === columnDetailKey);
+    const risk = riskFindings.find((r) => r.id === columnDetailKey);
+    const hasBaseline = previousData.length > 0 && currentData.length > 0;
+    const churn = hasBaseline
+      ? computeColumnValueChurn(previousData, currentData, columnDetailKey)
+      : null;
+    const baselineNullPct = hasBaseline
+      ? calculateNullPercentage(previousData, columnDetailKey)
+      : null;
+    const distinctPrev = hasBaseline
+      ? countDistinctValues(previousData, columnDetailKey)
+      : null;
+    const samples = sampleColumnValuesForDisplay(
+      currentData,
+      columnDetailKey,
+      6
+    );
+    const ds = getDownstreamForColumn(columnDetailKey);
+    return {
+      col,
+      ins,
+      risk,
+      hasBaseline,
+      churn,
+      baselineNullPct,
+      distinctPrev,
+      samples,
+      ds,
+    };
+  }, [
+    columnDetailKey,
+    columns,
+    insights,
+    riskFindings,
+    previousData,
+    currentData,
+  ]);
+
   const firstHighStatChange = statChanges.find((s) => s.tier === "HIGH");
 
   const chatContext = {
@@ -1361,7 +1572,25 @@ function App() {
   useEffect(() => {
     setSelectedChange(null);
     setSelectedColumn(null);
+    setGridSearchQuery("");
+    setGridFilterColumnKey("");
+    setGridFilterValue("");
+    setProblemRowsOnly(false);
+    setColumnDetailKey(null);
   }, [previousFileName, currentFileName, previousData.length, currentData.length]);
+
+  useEffect(() => {
+    if (activeTab !== "overview") setColumnDetailKey(null);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!columnDetailKey) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setColumnDetailKey(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [columnDetailKey]);
 
   useEffect(() => {
     if (previousData.length === 0 || currentData.length === 0) {
@@ -1546,6 +1775,11 @@ function App() {
     e.preventDefault();
     sendChatMessage(copilotInput);
     setCopilotInput("");
+  }
+
+  function openColumnExplorerDetail(columnKey) {
+    setColumnDetailKey(columnKey);
+    setFeedFocusColumnKey(columnKey);
   }
 
   function handleDemoLogin(e) {
@@ -2424,7 +2658,9 @@ function App() {
                       color: "var(--text)",
                     }}
                   >
-                    Raw current snapshot, column stats, and full risk notes.
+                    Raw current snapshot with search, filters, and column
+                    details. Click a header or a column stat card to inspect a
+                    field.
                   </p>
 
                   {currentData.length === 0 || columns.length === 0 ? (
@@ -2440,74 +2676,730 @@ function App() {
                       No current data to show. Load data from Sources.
                     </p>
                   ) : (
-                    <div
-                      style={{
-                        maxWidth: "100%",
-                        overflowX: "auto",
-                        margin: "0 auto 4px",
-                      }}
-                    >
-                      <table
-                        border="1"
-                        cellPadding="10"
-                        style={{ borderCollapse: "collapse" }}
+                    <>
+                      <div
+                        style={{
+                          maxWidth: "42rem",
+                          margin: "0 auto 16px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "12px",
+                        }}
                       >
-                        <thead>
-                          <tr>
-                            {columns.map((col) => (
-                              <th
-                                key={col.key}
+                        <input
+                          type="search"
+                          value={gridSearchQuery}
+                          onChange={(e) => setGridSearchQuery(e.target.value)}
+                          placeholder="Search all visible columns…"
+                          aria-label="Search table rows"
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            fontSize: "14px",
+                            fontFamily: "inherit",
+                            background: "var(--bg)",
+                            color: "var(--text-h)",
+                          }}
+                        />
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            gap: "10px",
+                          }}
+                        >
+                          <label
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "4px",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              color: "var(--text-h)",
+                              minWidth: "140px",
+                              flex: "1 1 140px",
+                            }}
+                          >
+                            Column
+                            <select
+                              value={gridFilterColumnKey}
+                              onChange={(e) =>
+                                setGridFilterColumnKey(e.target.value)
+                              }
+                              style={{
+                                padding: "8px 10px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                fontSize: "14px",
+                                fontFamily: "inherit",
+                                background: "var(--bg)",
+                                color: "var(--text-h)",
+                              }}
+                            >
+                              <option value="">Any column</option>
+                              {columns.map((c) => (
+                                <option key={c.key} value={c.key}>
+                                  {c.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "4px",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              color: "var(--text-h)",
+                              minWidth: "160px",
+                              flex: "2 1 160px",
+                            }}
+                          >
+                            Contains
+                            <input
+                              type="text"
+                              value={gridFilterValue}
+                              onChange={(e) =>
+                                setGridFilterValue(e.target.value)
+                              }
+                              placeholder="e.g. Denmark"
+                              disabled={!gridFilterColumnKey}
+                              aria-label="Filter by cell value"
+                              style={{
+                                padding: "8px 10px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                fontSize: "14px",
+                                fontFamily: "inherit",
+                                background: "var(--bg)",
+                                color: "var(--text-h)",
+                                opacity: gridFilterColumnKey ? 1 : 0.55,
+                              }}
+                            />
+                          </label>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              fontSize: "13px",
+                              color: "var(--text)",
+                              cursor:
+                                selectedChange?.drillKind &&
+                                previousData.length > 0
+                                  ? "pointer"
+                                  : "not-allowed",
+                              marginTop: "18px",
+                            }}
+                            title={
+                              selectedChange?.drillKind &&
+                              previousData.length > 0
+                                ? "Same rows as the drill-down for the selected change"
+                                : "Select a change with row drill-down and load baseline + current"
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={problemRowsOnly}
+                              onChange={(e) =>
+                                setProblemRowsOnly(e.target.checked)
+                              }
+                              disabled={
+                                !selectedChange?.drillKind ||
+                                previousData.length === 0
+                              }
+                            />
+                            Problem rows only
+                          </label>
+                        </div>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "13px",
+                            lineHeight: 1.5,
+                            color: "var(--text)",
+                          }}
+                        >
+                          <strong>{currentData.length}</strong> total rows
+                          <span style={{ color: "var(--border)" }}> · </span>
+                          <strong>{explorerFilteredIndices.length}</strong>{" "}
+                          shown
+                          {problemRowCountForExplorer != null ? (
+                            <>
+                              <span style={{ color: "var(--border)" }}>
+                                {" "}
+                                ·{" "}
+                              </span>
+                              <strong>{problemRowCountForExplorer}</strong>{" "}
+                              problem-related
+                              <span
                                 style={{
-                                  verticalAlign: "top",
-                                  textAlign: "left",
-                                  minWidth: "7rem",
-                                  outline:
-                                    feedFocusColumnKey === col.key
-                                      ? "2px solid var(--accent)"
-                                      : undefined,
-                                  outlineOffset: "2px",
+                                  fontSize: "12px",
+                                  color: "var(--text)",
+                                  opacity: 0.85,
                                 }}
                               >
-                                <div
+                                {" "}
+                                (for selected change)
+                              </span>
+                            </>
+                          ) : null}
+                        </p>
+                      </div>
+
+                      <div
+                        style={{
+                          maxWidth: "100%",
+                          overflowX: "auto",
+                          margin: "0 auto 4px",
+                        }}
+                      >
+                        <table
+                          border="1"
+                          cellPadding="10"
+                          style={{ borderCollapse: "collapse" }}
+                        >
+                          <thead>
+                            <tr>
+                              {columns.map((col) => (
+                                <th
+                                  key={col.key}
+                                  tabIndex={0}
+                                  aria-label={`${col.label}, open column details`}
+                                  onClick={() =>
+                                    openColumnExplorerDetail(col.key)
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (
+                                      e.key === "Enter" ||
+                                      e.key === " "
+                                    ) {
+                                      e.preventDefault();
+                                      openColumnExplorerDetail(col.key);
+                                    }
+                                  }}
                                   style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "flex-start",
-                                    gap: "8px",
+                                    verticalAlign: "top",
+                                    textAlign: "left",
+                                    minWidth: "7rem",
+                                    cursor: "pointer",
+                                    outline:
+                                      feedFocusColumnKey === col.key
+                                        ? "2px solid var(--accent)"
+                                        : undefined,
+                                    outlineOffset: "2px",
                                   }}
                                 >
-                                  <span
+                                  <div
                                     style={{
-                                      fontWeight: 600,
-                                      color: "var(--text-h)",
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      alignItems: "flex-start",
+                                      gap: "8px",
                                     }}
                                   >
-                                    {col.label}
-                                  </span>
-                                  <SensitivityBadge level={col.sensitivity} />
-                                </div>
-                              </th>
-                            ))}
-                          </tr>
-                          <tr>
-                            {insights.map((insight) => (
-                              <td key={insight.key}>
-                                {insight.nullPercentage}
-                              </td>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {currentData.map((row, index) => (
-                            <tr key={index}>
-                              {columns.map((col) => (
-                                <td key={col.key}>{row[col.key]}</td>
+                                    <span
+                                      style={{
+                                        fontWeight: 600,
+                                        color: "var(--text-h)",
+                                      }}
+                                    >
+                                      {col.label}
+                                    </span>
+                                    <SensitivityBadge
+                                      level={col.sensitivity}
+                                    />
+                                    <span
+                                      style={{
+                                        fontSize: "11px",
+                                        color: "var(--accent)",
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      View details
+                                    </span>
+                                  </div>
+                                </th>
                               ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                            <tr>
+                              {insights.map((insight) => (
+                                <td key={insight.key}>
+                                  {insight.nullPercentage}
+                                </td>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {explorerFilteredIndices.length === 0 ? (
+                              <tr>
+                                <td
+                                  colSpan={columns.length}
+                                  style={{
+                                    padding: "16px 12px",
+                                    fontSize: "14px",
+                                    color: "var(--text)",
+                                  }}
+                                >
+                                  No rows match your filters.
+                                </td>
+                              </tr>
+                            ) : (
+                              explorerFilteredIndices.map((rowIndex) => {
+                                const row = currentData[rowIndex];
+                                return (
+                                  <tr key={rowIndex}>
+                                    {columns.map((col) => (
+                                      <td key={col.key}>
+                                        {row[col.key] === null ||
+                                        row[col.key] === undefined ||
+                                        row[col.key] === ""
+                                          ? "—"
+                                          : String(row[col.key])}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {columnDetailKey && columnExplorerDetail ? (
+                        <>
+                          <button
+                            type="button"
+                            aria-label="Close column details"
+                            onClick={() => setColumnDetailKey(null)}
+                            style={{
+                              position: "fixed",
+                              inset: 0,
+                              zIndex: 36,
+                              border: "none",
+                              padding: 0,
+                              margin: 0,
+                              background: "rgba(15, 18, 28, 0.18)",
+                              cursor: "pointer",
+                            }}
+                          />
+                          <aside
+                            style={{
+                              position: "fixed",
+                              top: 0,
+                              right: 0,
+                              bottom: 0,
+                              width: "min(380px, 94vw)",
+                              zIndex: 37,
+                              background: "var(--bg)",
+                              borderLeft: "1px solid var(--border)",
+                              boxShadow: "-12px 0 40px rgba(0,0,0,0.12)",
+                              overflowY: "auto",
+                              padding: "20px 18px 100px",
+                              boxSizing: "border-box",
+                              textAlign: "left",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                justifyContent: "space-between",
+                                gap: "12px",
+                                marginBottom: "16px",
+                              }}
+                            >
+                              <h3
+                                style={{
+                                  margin: 0,
+                                  fontSize: "18px",
+                                  fontWeight: 700,
+                                  color: "var(--text-h)",
+                                  lineHeight: 1.25,
+                                }}
+                              >
+                                {columnExplorerDetail.col.label}
+                              </h3>
+                              <button
+                                type="button"
+                                onClick={() => setColumnDetailKey(null)}
+                                className="app-ghost-btn"
+                                style={{
+                                  flexShrink: 0,
+                                  padding: "6px 12px",
+                                  fontSize: "13px",
+                                  fontWeight: 600,
+                                  borderRadius: "8px",
+                                  border: "1px solid var(--border)",
+                                  background: "var(--social-bg)",
+                                  color: "var(--text-h)",
+                                  cursor: "pointer",
+                                  fontFamily: "inherit",
+                                }}
+                              >
+                                Close
+                              </button>
+                            </div>
+
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                                color: "var(--text-h)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              Current snapshot
+                            </div>
+                            <p
+                              style={{
+                                margin: "0 0 14px",
+                                fontSize: "14px",
+                                lineHeight: 1.5,
+                                color: "var(--text)",
+                              }}
+                            >
+                              <strong>Nulls:</strong>{" "}
+                              {columnExplorerDetail.ins?.nullPercentage ?? "—"}
+                              <br />
+                              <strong>Distinct values:</strong>{" "}
+                              {columnExplorerDetail.ins?.distinctCount ?? "—"}
+                            </p>
+
+                            {columnExplorerDetail.hasBaseline ? (
+                              <>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    fontWeight: 700,
+                                    letterSpacing: "0.06em",
+                                    textTransform: "uppercase",
+                                    color: "var(--text-h)",
+                                    marginBottom: "6px",
+                                  }}
+                                >
+                                  vs baseline
+                                </div>
+                                <p
+                                  style={{
+                                    margin: "0 0 14px",
+                                    fontSize: "14px",
+                                    lineHeight: 1.5,
+                                    color: "var(--text)",
+                                  }}
+                                >
+                                  <strong>Nulls (baseline):</strong>{" "}
+                                  {columnExplorerDetail.baselineNullPct}
+                                  <br />
+                                  <strong>Distinct (baseline):</strong>{" "}
+                                  {columnExplorerDetail.distinctPrev}
+                                </p>
+                              </>
+                            ) : null}
+
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                                color: "var(--text-h)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              Sample values
+                            </div>
+                            <p
+                              style={{
+                                margin: "0 0 14px",
+                                fontSize: "14px",
+                                lineHeight: 1.45,
+                                color: "var(--text)",
+                              }}
+                            >
+                              {columnExplorerDetail.samples.length > 0
+                                ? columnExplorerDetail.samples
+                                    .map((v) => String(v))
+                                    .join(", ")
+                                : "No non-empty values in the current snapshot."}
+                            </p>
+
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                                color: "var(--text-h)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              Changed vs baseline
+                            </div>
+                            <p
+                              style={{
+                                margin: "0 0 14px",
+                                fontSize: "14px",
+                                lineHeight: 1.5,
+                                color: "var(--text)",
+                              }}
+                            >
+                              {columnExplorerDetail.hasBaseline &&
+                              columnExplorerDetail.ins
+                                ? (() => {
+                                    const d = columnExplorerDetail;
+                                    const bits = [];
+                                    if (
+                                      d.baselineNullPct !== d.ins.nullPercentage
+                                    ) {
+                                      bits.push(
+                                        `Null rate ${d.baselineNullPct} → ${d.ins.nullPercentage}.`
+                                      );
+                                    }
+                                    if (
+                                      d.distinctPrev !== d.ins.distinctCount
+                                    ) {
+                                      bits.push(
+                                        `Distinct count ${d.distinctPrev} → ${d.ins.distinctCount}.`
+                                      );
+                                    }
+                                    if (d.churn?.addedValues.length) {
+                                      bits.push(
+                                        "New categorical values appeared."
+                                      );
+                                    }
+                                    if (d.churn?.removedValues.length) {
+                                      bits.push(
+                                        "Some baseline values no longer appear."
+                                      );
+                                    }
+                                    return bits.length > 0
+                                      ? bits.join(" ")
+                                      : "No material drift on this column.";
+                                  })()
+                                : "Load baseline + current to compare."}
+                            </p>
+
+                            {columnExplorerDetail.churn &&
+                            (columnExplorerDetail.churn.addedValues.length >
+                              0 ||
+                              columnExplorerDetail.churn.removedValues.length >
+                                0) ? (
+                              <>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    fontWeight: 700,
+                                    letterSpacing: "0.06em",
+                                    textTransform: "uppercase",
+                                    color: "var(--text-h)",
+                                    marginBottom: "8px",
+                                  }}
+                                >
+                                  Value breakdown
+                                </div>
+                                {columnExplorerDetail.churn.addedValues
+                                  .length > 0 ? (
+                                  <div style={{ marginBottom: "12px" }}>
+                                    <div
+                                      style={{
+                                        fontSize: "13px",
+                                        fontWeight: 600,
+                                        color: "var(--text-h)",
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      New values (
+                                      {
+                                        columnExplorerDetail.churn
+                                          .newValueRowCount
+                                      }{" "}
+                                      rows in current)
+                                    </div>
+                                    <ul
+                                      style={{
+                                        margin: 0,
+                                        paddingLeft: "1.2rem",
+                                        fontSize: "13px",
+                                        lineHeight: 1.45,
+                                        color: "var(--text)",
+                                      }}
+                                    >
+                                      {columnExplorerDetail.churn.addedValues
+                                        .slice(0, 12)
+                                        .map((v) => (
+                                          <li key={`a-${String(v)}`}>
+                                            {String(v)}
+                                          </li>
+                                        ))}
+                                      {columnExplorerDetail.churn.addedValues
+                                        .length > 12 ? (
+                                        <li>
+                                          …and{" "}
+                                          {columnExplorerDetail.churn
+                                            .addedValues.length - 12}{" "}
+                                          more
+                                        </li>
+                                      ) : null}
+                                    </ul>
+                                  </div>
+                                ) : null}
+                                {columnExplorerDetail.churn.removedValues
+                                  .length > 0 ? (
+                                  <div style={{ marginBottom: "14px" }}>
+                                    <div
+                                      style={{
+                                        fontSize: "13px",
+                                        fontWeight: 600,
+                                        color: "var(--text-h)",
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      Removed values (
+                                      {
+                                        columnExplorerDetail.churn
+                                          .removedPrevRowCount
+                                      }{" "}
+                                      rows in baseline)
+                                    </div>
+                                    <ul
+                                      style={{
+                                        margin: 0,
+                                        paddingLeft: "1.2rem",
+                                        fontSize: "13px",
+                                        lineHeight: 1.45,
+                                        color: "var(--text)",
+                                      }}
+                                    >
+                                      {columnExplorerDetail.churn.removedValues
+                                        .slice(0, 12)
+                                        .map((v) => (
+                                          <li key={`r-${String(v)}`}>
+                                            {String(v)}
+                                          </li>
+                                        ))}
+                                      {columnExplorerDetail.churn.removedValues
+                                        .length > 12 ? (
+                                        <li>
+                                          …and{" "}
+                                          {columnExplorerDetail.churn
+                                            .removedValues.length - 12}{" "}
+                                          more
+                                        </li>
+                                      ) : null}
+                                    </ul>
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : null}
+
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                                color: "var(--text-h)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              Why it may matter
+                            </div>
+                            {columnExplorerDetail.risk ? (
+                              <>
+                                <p
+                                  style={{
+                                    margin: "0 0 10px",
+                                    fontSize: "14px",
+                                    lineHeight: 1.5,
+                                    color: "var(--text)",
+                                  }}
+                                >
+                                  {columnExplorerDetail.risk.whyMatters}
+                                </p>
+                                {columnExplorerDetail.risk.mayBreak.length >
+                                0 ? (
+                                  <ul
+                                    style={{
+                                      margin: "0 0 8px",
+                                      paddingLeft: "1.2rem",
+                                      fontSize: "13px",
+                                      lineHeight: 1.45,
+                                      color: "var(--text)",
+                                    }}
+                                  >
+                                    {columnExplorerDetail.risk.mayBreak.map(
+                                      (x) => (
+                                        <li key={x}>May break: {x}</li>
+                                      )
+                                    )}
+                                  </ul>
+                                ) : null}
+                                {columnExplorerDetail.risk.mayAffect.length >
+                                0 ? (
+                                  <ul
+                                    style={{
+                                      margin: 0,
+                                      paddingLeft: "1.2rem",
+                                      fontSize: "13px",
+                                      lineHeight: 1.45,
+                                      color: "var(--text)",
+                                    }}
+                                  >
+                                    {columnExplorerDetail.risk.mayAffect.map(
+                                      (x) => (
+                                        <li key={x}>May affect: {x}</li>
+                                      )
+                                    )}
+                                  </ul>
+                                ) : null}
+                              </>
+                            ) : (
+                              <>
+                                <p
+                                  style={{
+                                    margin: "0 0 8px",
+                                    fontSize: "14px",
+                                    lineHeight: 1.5,
+                                    color: "var(--text)",
+                                  }}
+                                >
+                                  No risk card for this column in this
+                                  comparison. Typical downstream touchpoints:
+                                </p>
+                                <ul
+                                  style={{
+                                    margin: 0,
+                                    paddingLeft: "1.2rem",
+                                    fontSize: "13px",
+                                    lineHeight: 1.45,
+                                    color: "var(--text)",
+                                  }}
+                                >
+                                  {columnExplorerDetail.ds.mayBreak.map(
+                                    (x) => (
+                                      <li key={`fb-${x}`}>May break: {x}</li>
+                                    )
+                                  )}
+                                  {columnExplorerDetail.ds.mayAffect.map(
+                                    (x) => (
+                                      <li key={`fa-${x}`}>May affect: {x}</li>
+                                    )
+                                  )}
+                                </ul>
+                              </>
+                            )}
+                          </aside>
+                        </>
+                      ) : null}
+                    </>
                   )}
 
                   {columns.length > 0 && currentData.length > 0 ? (
@@ -2527,7 +3419,20 @@ function App() {
                       <ul style={insightListStyle}>
                         {insights.map((insight) => (
                           <li key={insight.key}>
-                            <div role="status" style={insightCardStyle}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openColumnExplorerDetail(insight.key)
+                              }
+                              style={{
+                                ...insightCardStyle,
+                                width: "100%",
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                                textAlign: "left",
+                                display: "block",
+                              }}
+                            >
                               <div
                                 style={{
                                   display: "flex",
@@ -2546,14 +3451,26 @@ function App() {
                                 >
                                   {insight.label}
                                 </span>
-                                <SensitivityBadge level={insight.sensitivity} />
+                                <SensitivityBadge
+                                  level={insight.sensitivity}
+                                />
                               </div>
                               <div>
                                 {insight.distinctCount} distinct value
                                 {insight.distinctCount === 1 ? "" : "s"}
                               </div>
                               <div>{insight.nullPercentage} nulls</div>
-                            </div>
+                              <div
+                                style={{
+                                  marginTop: "8px",
+                                  fontSize: "12px",
+                                  fontWeight: 600,
+                                  color: "var(--accent)",
+                                }}
+                              >
+                                Open details →
+                              </div>
+                            </button>
                           </li>
                         ))}
                       </ul>
