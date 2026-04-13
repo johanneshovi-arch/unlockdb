@@ -78,6 +78,110 @@ const SNOWFLAKE_DEMO_CURRENT = [
   },
 ];
 
+const DATABRICKS_DEMO_PREVIOUS = [
+  {
+    event_id: "evt-001",
+    user_id: "u-1001",
+    event_type: "login",
+    country: "Finland",
+    event_time: "2025-04-01T09:00:00Z",
+  },
+  {
+    event_id: "evt-002",
+    user_id: "u-1002",
+    event_type: "purchase",
+    country: "Sweden",
+    event_time: "2025-04-01T10:15:00Z",
+  },
+  {
+    event_id: "evt-003",
+    user_id: "u-1003",
+    event_type: "view",
+    country: "Norway",
+    event_time: "2025-04-01T11:00:00Z",
+  },
+  {
+    event_id: "evt-004",
+    user_id: "u-1001",
+    event_type: "purchase",
+    country: "Finland",
+    event_time: "2025-04-01T14:00:00Z",
+  },
+  {
+    event_id: "evt-005",
+    user_id: "u-1004",
+    event_type: "login",
+    country: "Sweden",
+    event_time: "2025-04-01T15:30:00Z",
+  },
+  {
+    event_id: "evt-006",
+    user_id: "u-1002",
+    event_type: "view",
+    country: "Norway",
+    event_time: "2025-04-01T16:00:00Z",
+  },
+];
+
+const DATABRICKS_DEMO_CURRENT = [
+  {
+    event_id: "evt-001",
+    user_id: "u-1001",
+    event_type: "login",
+    country: "Finland",
+    event_time: "2025-04-02T09:00:00Z",
+  },
+  {
+    event_id: "evt-002",
+    user_id: "u-1002",
+    event_type: "purchase",
+    country: "Sweden",
+    event_time: "2025-04-02T10:15:00Z",
+  },
+  {
+    event_id: "evt-003",
+    user_id: "u-1003",
+    event_type: "view",
+    country: "Norway",
+    event_time: "2025-04-02T11:00:00Z",
+  },
+  {
+    event_id: "evt-004",
+    user_id: "u-1001",
+    event_type: "purchase",
+    country: "Finland",
+    event_time: "2025-04-02T14:00:00Z",
+  },
+  {
+    event_id: "evt-005",
+    user_id: "u-1004",
+    event_type: "login",
+    country: "Sweden",
+    event_time: "2025-04-02T15:30:00Z",
+  },
+  {
+    event_id: "evt-006",
+    user_id: "u-1002",
+    event_type: "view",
+    country: "Norway",
+    event_time: "2025-04-02T16:00:00Z",
+  },
+  {
+    event_id: "evt-007",
+    user_id: null,
+    event_type: "login",
+    country: "Finland",
+    event_time: "2025-04-02T17:00:00Z",
+  },
+  {
+    event_id: "evt-008",
+    user_id: "u-1005",
+    event_type: "refund",
+    country: "Denmark",
+    event_time: "2025-04-02T18:00:00Z",
+  },
+];
+
 const SAMPLE_PREVIOUS_DATA = [
   { name: "Alice", age: 25, country: "Finland" },
   { name: "Bob", age: 30, country: "Sweden" },
@@ -99,6 +203,10 @@ const COLUMN_SENSITIVITY_PRESETS = {
   email: "Sensitive",
   plan_tier: "Internal",
   mrr: "Internal",
+  event_id: "Internal",
+  user_id: "Sensitive",
+  event_type: "Internal",
+  event_time: "Internal",
 };
 
 function presetSensitivity(key) {
@@ -230,7 +338,27 @@ const COLUMN_DOWNSTREAM = {
   },
   country: {
     mayBreak: [],
-    mayAffect: ["Revenue dashboard", "Looker: Revenue by country"],
+    mayAffect: [
+      "Geo analytics dashboard",
+      "Revenue dashboard",
+      "Looker: Revenue by country",
+    ],
+  },
+  event_id: {
+    mayBreak: ["Event deduplication jobs"],
+    mayAffect: ["Pipeline watermarking", "Idempotent ingest checks"],
+  },
+  user_id: {
+    mayBreak: ["Identity resolution service", "User journey pipeline"],
+    mayAffect: ["Session stitching", "Attribution and cohort models"],
+  },
+  event_type: {
+    mayBreak: ["Product analytics funnel definitions"],
+    mayAffect: ["Product analytics dashboard", "Feature adoption reports"],
+  },
+  event_time: {
+    mayBreak: ["Event freshness monitors", "Time-series aggregation jobs"],
+    mayAffect: ["Real-time dashboards", "Hourly event volume reporting"],
   },
   email: {
     mayBreak: ["CRM sync", "User identity service"],
@@ -1379,6 +1507,14 @@ function App() {
   });
   const [snowflakeDemoConnected, setSnowflakeDemoConnected] = useState(false);
   const [snowflakeConnecting, setSnowflakeConnecting] = useState(false);
+  const [databricksForm, setDatabricksForm] = useState({
+    workspaceUrl: "",
+    catalog: "",
+    schema: "",
+    clusterWarehouse: "",
+  });
+  const [databricksDemoConnected, setDatabricksDemoConnected] = useState(false);
+  const [databricksConnecting, setDatabricksConnecting] = useState(false);
   const [connectDemoAck, setConnectDemoAck] = useState(false);
 
   const previousCsvInputRef = useRef(null);
@@ -1647,6 +1783,7 @@ function App() {
     if (!file) return;
     readCsvFile(file, (rows) => {
       setSnowflakeDemoConnected(false);
+      setDatabricksDemoConnected(false);
       setPreviousData(rows);
       setPreviousFileName(file.name);
       input.value = "";
@@ -1659,6 +1796,7 @@ function App() {
     if (!file) return;
     readCsvFile(file, (rows) => {
       setSnowflakeDemoConnected(false);
+      setDatabricksDemoConnected(false);
       setCurrentData(rows);
       setCurrentFileName(file.name);
       input.value = "";
@@ -1667,6 +1805,7 @@ function App() {
 
   function handleUseSampleDataset() {
     setSnowflakeDemoConnected(false);
+    setDatabricksDemoConnected(false);
     setPreviousData(SAMPLE_PREVIOUS_DATA);
     setCurrentData(SAMPLE_CURRENT_DATA);
     setPreviousFileName("sample-previous.csv");
@@ -1678,6 +1817,7 @@ function App() {
     setSelectedSource(id);
     setConnectDemoAck(false);
     setSnowflakeConnecting(false);
+    setDatabricksConnecting(false);
     setConnectionForm({ account: "", user: "", warehouse: "" });
     setSnowflakeForm({
       account: "",
@@ -1686,8 +1826,17 @@ function App() {
       database: "",
       schema: "",
     });
+    setDatabricksForm({
+      workspaceUrl: "",
+      catalog: "",
+      schema: "",
+      clusterWarehouse: "",
+    });
     if (id !== "snowflake") {
       setSnowflakeDemoConnected(false);
+    }
+    if (id !== "databricks") {
+      setDatabricksDemoConnected(false);
     }
   }
 
@@ -1702,6 +1851,7 @@ function App() {
     window.setTimeout(() => {
       setSnowflakeConnecting(false);
       setSnowflakeDemoConnected(true);
+      setDatabricksDemoConnected(false);
       setPreviousData(SNOWFLAKE_DEMO_PREVIOUS);
       setCurrentData(SNOWFLAKE_DEMO_CURRENT);
       setPreviousFileName("Snowflake · customers (baseline)");
@@ -1712,6 +1862,26 @@ function App() {
   function handleSnowflakeDemoConnect(e) {
     e.preventDefault();
     runSnowflakeDemoDataset();
+    setActiveTab("overview");
+  }
+
+  function runDatabricksDemoDataset() {
+    if (databricksConnecting) return;
+    setDatabricksConnecting(true);
+    window.setTimeout(() => {
+      setDatabricksConnecting(false);
+      setDatabricksDemoConnected(true);
+      setSnowflakeDemoConnected(false);
+      setPreviousData(DATABRICKS_DEMO_PREVIOUS);
+      setCurrentData(DATABRICKS_DEMO_CURRENT);
+      setPreviousFileName("Databricks · events (baseline)");
+      setCurrentFileName("Databricks · events (current)");
+    }, 1000);
+  }
+
+  function handleDatabricksDemoConnect(e) {
+    e.preventDefault();
+    runDatabricksDemoDataset();
     setActiveTab("overview");
   }
 
@@ -2126,6 +2296,63 @@ function App() {
                           Table:{" "}
                         </span>
                         customers
+                      </div>
+                    </div>
+                  </div>
+                ) : databricksDemoConnected ? (
+                  <div
+                    style={{
+                      maxWidth: "44rem",
+                      margin: "0 auto 16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "var(--text-h)",
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <span style={{ color: "var(--text)" }}>Source: </span>
+                      Databricks demo
+                      <span style={{ margin: "0 8px", color: "var(--border)" }}>
+                        ·
+                      </span>
+                      <span style={{ color: "var(--text)" }}>Table: </span>
+                      events
+                    </div>
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--code-bg)",
+                        fontSize: "13px",
+                        lineHeight: 1.5,
+                        color: "var(--text)",
+                      }}
+                    >
+                      <div>
+                        <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                          Catalog:{" "}
+                        </span>
+                        main
+                      </div>
+                      <div>
+                        <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                          Schema:{" "}
+                        </span>
+                        analytics
+                      </div>
+                      <div>
+                        <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                          Table:{" "}
+                        </span>
+                        events
                       </div>
                     </div>
                   </div>
@@ -4091,6 +4318,23 @@ function App() {
                   >
                     Connected
                   </span>
+                ) : selectedSource === "databricks" &&
+                  databricksDemoConnected ? (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      border: "1px solid var(--accent-border)",
+                      background: "var(--accent-bg)",
+                      color: "var(--accent)",
+                    }}
+                  >
+                    Connected
+                  </span>
                 ) : null}
               </div>
             ) : null}
@@ -4421,8 +4665,206 @@ function App() {
               </div>
             ) : null}
 
-            {(selectedSource === "databricks" ||
-              selectedSource === "fabric") && (
+            {selectedSource === "databricks" && !databricksDemoConnected ? (
+              <form
+                onSubmit={handleDatabricksDemoConnect}
+                style={{
+                  padding: "18px 20px",
+                  borderRadius: "12px",
+                  border: "1px solid var(--accent-border)",
+                  background: "var(--accent-bg)",
+                  boxSizing: "border-box",
+                  marginBottom: "20px",
+                }}
+              >
+                <h2
+                  style={{
+                    margin: "0 0 6px",
+                    fontSize: "18px",
+                    fontWeight: 700,
+                    color: "var(--text-h)",
+                  }}
+                >
+                  Connect Databricks
+                </h2>
+                <p
+                  style={{
+                    margin: "0 0 16px",
+                    fontSize: "13px",
+                    lineHeight: 1.45,
+                    color: "var(--text)",
+                  }}
+                >
+                  Demo mode — this simulates a read-only Databricks connection.
+                </p>
+                <div style={authLabelStyle}>
+                  <label htmlFor="db-workspace">Workspace URL</label>
+                  <input
+                    id="db-workspace"
+                    type="text"
+                    autoComplete="off"
+                    value={databricksForm.workspaceUrl}
+                    onChange={(e) =>
+                      setDatabricksForm((f) => ({
+                        ...f,
+                        workspaceUrl: e.target.value,
+                      }))
+                    }
+                    style={authInputStyle}
+                    placeholder="https://dbc-xxxxxxxx.cloud.databricks.com"
+                  />
+                </div>
+                <div style={authLabelStyle}>
+                  <label htmlFor="db-catalog">Catalog</label>
+                  <input
+                    id="db-catalog"
+                    type="text"
+                    autoComplete="off"
+                    value={databricksForm.catalog}
+                    onChange={(e) =>
+                      setDatabricksForm((f) => ({
+                        ...f,
+                        catalog: e.target.value,
+                      }))
+                    }
+                    style={authInputStyle}
+                    placeholder="main"
+                  />
+                </div>
+                <div style={authLabelStyle}>
+                  <label htmlFor="db-schema">Schema</label>
+                  <input
+                    id="db-schema"
+                    type="text"
+                    autoComplete="off"
+                    value={databricksForm.schema}
+                    onChange={(e) =>
+                      setDatabricksForm((f) => ({
+                        ...f,
+                        schema: e.target.value,
+                      }))
+                    }
+                    style={authInputStyle}
+                    placeholder="analytics"
+                  />
+                </div>
+                <div style={authLabelStyle}>
+                  <label htmlFor="db-cluster">Cluster / SQL Warehouse</label>
+                  <input
+                    id="db-cluster"
+                    type="text"
+                    autoComplete="off"
+                    value={databricksForm.clusterWarehouse}
+                    onChange={(e) =>
+                      setDatabricksForm((f) => ({
+                        ...f,
+                        clusterWarehouse: e.target.value,
+                      }))
+                    }
+                    style={authInputStyle}
+                    placeholder="Shared autoscaling cluster"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={databricksConnecting}
+                  className="app-primary-btn"
+                  style={{
+                    marginTop: "14px",
+                    padding: "12px 22px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--accent-border)",
+                    background: "var(--accent-bg)",
+                    color: "var(--accent)",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    fontFamily: "inherit",
+                    cursor: databricksConnecting ? "wait" : "pointer",
+                    opacity: databricksConnecting ? 0.85 : 1,
+                  }}
+                >
+                  {databricksConnecting
+                    ? "Connecting…"
+                    : "Connect to Databricks"}
+                </button>
+              </form>
+            ) : null}
+
+            {selectedSource === "databricks" && databricksDemoConnected ? (
+              <div
+                style={{
+                  marginBottom: "24px",
+                  padding: "18px 20px",
+                  borderRadius: "12px",
+                  border: "1px solid var(--border)",
+                  background: "var(--code-bg)",
+                }}
+              >
+                <p
+                  style={{
+                    margin: "0 0 14px",
+                    fontSize: "15px",
+                    fontWeight: 600,
+                    color: "var(--text-h)",
+                  }}
+                >
+                  Connected to Databricks demo workspace
+                </p>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "14px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    padding: "4px 10px",
+                    borderRadius: "999px",
+                    border: "1px solid var(--accent-border)",
+                    background: "var(--accent-bg)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  Connected
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    lineHeight: 1.55,
+                    color: "var(--text)",
+                  }}
+                >
+                  <div>
+                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                      Source:{" "}
+                    </span>
+                    Databricks demo
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                      Catalog:{" "}
+                    </span>
+                    main
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                      Schema:{" "}
+                    </span>
+                    analytics
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                      Table:{" "}
+                    </span>
+                    events
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {selectedSource === "fabric" ? (
               <form
                 onSubmit={handleDemoConnect}
                 style={{
@@ -4519,7 +4961,7 @@ function App() {
                   </p>
                 ) : null}
               </form>
-            )}
+            ) : null}
           </section>
         )}
 
