@@ -395,6 +395,204 @@ function formatStatChangeBullet(statChange) {
   return statChange.changeText;
 }
 
+function simpleStringHash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+function pickVariant(seed, variants) {
+  if (!variants.length) return "";
+  return variants[seed % variants.length];
+}
+
+function inferExplainChangeKind(statChange) {
+  const t = statChange.changeText ?? "";
+  if (
+    statChange.drillKind === "null_increase" ||
+    /\bnulls? increased\b/i.test(t)
+  ) {
+    return "null_increase";
+  }
+  if (
+    statChange.drillKind === "new_values" ||
+    /\bintroduced new value/i.test(t)
+  ) {
+    return "new_values";
+  }
+  if (
+    statChange.drillKind === "removed_values" ||
+    /\bremoved value:/i.test(t)
+  ) {
+    return "removed_values";
+  }
+  if (/\bnulls? decreased\b/i.test(t)) return "null_decrease";
+  if (
+    /fewer distinct|more distinct|distribution changed|distinct \d/i.test(t)
+  ) {
+    return "distribution";
+  }
+  return "generic";
+}
+
+function columnDomainHint(columnKey) {
+  const k = String(columnKey ?? "").toLowerCase();
+  if (k.includes("email")) return "email";
+  if (k.includes("country")) return "country";
+  if (k.includes("event_type")) return "event_type";
+  if (
+    /\b(amount|revenue|mrr|price|total|cost)\b/.test(k) ||
+    k.includes("amount") ||
+    k.includes("revenue")
+  ) {
+    return "money";
+  }
+  if (
+    k === "id" ||
+    k.endsWith("_id") ||
+    /(^|_)id($|_)/.test(k) ||
+    (k.includes("id") && (k.includes("user") || k.includes("customer")))
+  ) {
+    return "identity";
+  }
+  if (k.includes("id")) return "identity";
+  return "generic";
+}
+
+function findRiskForStatChange(statChange, riskFindings) {
+  if (!statChange?.columnKey) return null;
+  return riskFindings.find((r) => r.id === statChange.columnKey) ?? null;
+}
+
+function buildAiExplainForStatChange(statChange, riskFindings) {
+  const risk = findRiskForStatChange(statChange, riskFindings);
+  const kind = inferExplainChangeKind(statChange);
+  const domain = columnDomainHint(statChange.columnKey);
+  const label = statChange.columnLabel ?? statChange.columnKey ?? "Column";
+  const seed = simpleStringHash(statChange.id);
+  const ct = (statChange.changeText ?? "").trim();
+
+  const domainNoun = {
+    identity: "identity resolution, joins, and user-level attribution",
+    email: "email-based CRM syncs and user communication",
+    country: "geo analytics and regional reporting",
+    event_type: "product analytics, funnels, and event-based dashboards",
+    money: "financial and KPI reporting",
+    generic: "downstream analytics and integrations",
+  }[domain];
+
+  const title =
+    ct.length <= 72 ? `${label}: ${ct}` : `${label} — ${ct.slice(0, 68)}…`;
+
+  const whatParts = [
+    `We compared your baseline and current snapshots and spotted: ${ct}.`,
+  ];
+  if (risk?.exampleIssue) {
+    whatParts.push(`Concrete signal: ${risk.exampleIssue}`);
+  }
+  const whatChanged = whatParts.join(" ");
+
+  let impact = "";
+  if (kind === "null_increase") {
+    impact = `More missing values can quietly disrupt ${domainNoun}. Dashboards and pipelines that assume this field is populated may skew or fail.`;
+  } else if (kind === "new_values") {
+    impact = `New values shift how ${domainNoun} behave—filters, segments, and rules may need updating before metrics look trustworthy again.`;
+  } else if (kind === "removed_values") {
+    impact = `Values disappearing from ${domainNoun} can hollow out segments and break joins or lookups that still expect the old categories.`;
+  } else if (kind === "null_decrease") {
+    impact = `Fewer nulls usually help ${domainNoun}, but sudden shifts can still desync historical comparisons—worth validating it's intentional.`;
+  } else if (kind === "distribution") {
+    impact = `Distribution drift in this field can distort ${domainNoun}—trends and breakdowns may reflect data changes rather than real-world shifts.`;
+  } else {
+    impact = `This shift may affect ${domainNoun}. ${risk?.whyMatters ? risk.whyMatters : "Review consumers of this column to be safe."}`;
+  }
+
+  const likelyNull = [
+    "This pattern often shows up when an ingestion job, sync, or transformation stops mapping the field—or starts writing blanks for some rows.",
+    "Usually it's upstream: a connector schema change, a bug in an ELT step, or a source system that began omitting the value.",
+  ];
+  const likelyNew = [
+    "New categories commonly come from product releases, marketing campaigns, or upstream enums expanding without a coordinated rollout.",
+    "Often a team enabled a new event, SKU, or dimension value before dashboards and mappings were refreshed.",
+  ];
+  const likelyRemoved = [
+    "Removed values frequently trace to data retention rules, deduping, or a breaking change in how the source encodes categories.",
+    "Sometimes an upstream job now filters rows differently, so certain labels never reach this snapshot.",
+  ];
+  const likelyDist = [
+    "Distribution shifts can be seasonal—or a sign that sampling, filters, or warehouse logic changed between snapshots.",
+    "Worth checking whether the extract window, cluster, or warehouse view changed while the business stayed the same.",
+  ];
+  const likelyGeneric = [
+    "Without live lineage we can't know for sure—treat this as a signal to compare pipeline versions and source configs between the two loads.",
+    "Often it's a mix of product change and pipeline change; the fix is to confirm which side moved first.",
+  ];
+
+  let likelyPool = likelyGeneric;
+  if (kind === "null_increase" || kind === "null_decrease") likelyPool = likelyNull;
+  else if (kind === "new_values") likelyPool = likelyNew;
+  else if (kind === "removed_values") likelyPool = likelyRemoved;
+  else if (kind === "distribution") likelyPool = likelyDist;
+
+  const likelyCause = pickVariant(seed, likelyPool);
+
+  const actNull = [
+    `Inspect the job or transformation that writes “${label}”—replay a small batch and confirm the field is populated end-to-end.`,
+    `Compare schema contracts and null-handling rules between baseline and current extracts, then add monitoring on null rate for “${label}”.`,
+  ];
+  const actNew = [
+    `Update dimension / lookup tables and dashboard filters to include the new values for “${label}”, then tell stakeholders.`,
+    `Document the new category, backfill mappings if needed, and add a test that flags unknown “${label}” values.`,
+  ];
+  const actRemoved = [
+    `Confirm whether removed “${label}” values are expected; if not, restore upstream logic or adjust dependent reports.`,
+    `Search downstream models for hard-coded references to the old “${label}” values and patch or deprecate them.`,
+  ];
+  const actDist = [
+    `Reconcile snapshot definitions (time window, warehouse, filters) and add a simple distribution check to catch silent drift.`,
+    `Plot “${label}” over time and tag the deploy or config change that lines up with the shift.`,
+  ];
+  const actGeneric = [
+    `Share this diff with the owner of “${label}” and walk through baseline vs current row samples in the Details grid.`,
+    `Use the drill-down and copilot filters to isolate affected rows, then trace them back to the ingestion step.`,
+  ];
+
+  let actPool = actGeneric;
+  if (kind === "null_increase" || kind === "null_decrease") actPool = actNull;
+  else if (kind === "new_values") actPool = actNew;
+  else if (kind === "removed_values") actPool = actRemoved;
+  else if (kind === "distribution") actPool = actDist;
+
+  const suggestedAction = pickVariant(seed + 7, actPool);
+
+  return {
+    title,
+    whatChanged,
+    impact,
+    likelyCause,
+    suggestedAction,
+  };
+}
+
+const aiExplainSectionLabelStyle = {
+  fontSize: "12px",
+  fontWeight: 700,
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+  color: "var(--text-h)",
+  marginBottom: "6px",
+};
+
+const aiExplainSectionBodyStyle = {
+  margin: "0 0 18px",
+  fontSize: "14px",
+  lineHeight: 1.55,
+  color: "var(--text)",
+};
+
 function countHighRisk(changes) {
   return changes.filter((c) => c.nullChanged).length;
 }
@@ -1536,6 +1734,7 @@ function App() {
   const [gridFilterValue, setGridFilterValue] = useState("");
   const [problemRowsOnly, setProblemRowsOnly] = useState(false);
   const [columnDetailKey, setColumnDetailKey] = useState(null);
+  const [explainStatChange, setExplainStatChange] = useState(null);
 
   const columns = useMemo(
     () => buildColumnsFromCurrentOnly(currentData),
@@ -1647,6 +1846,11 @@ function App() {
     previousData,
   ]);
 
+  const aiExplainPayload = useMemo(() => {
+    if (!explainStatChange) return null;
+    return buildAiExplainForStatChange(explainStatChange, riskFindings);
+  }, [explainStatChange, riskFindings]);
+
   const columnExplorerDetail = useMemo(() => {
     if (!columnDetailKey) return null;
     const col = columns.find((c) => c.key === columnDetailKey);
@@ -1713,10 +1917,14 @@ function App() {
     setGridFilterValue("");
     setProblemRowsOnly(false);
     setColumnDetailKey(null);
+    setExplainStatChange(null);
   }, [previousFileName, currentFileName, previousData.length, currentData.length]);
 
   useEffect(() => {
-    if (activeTab !== "overview") setColumnDetailKey(null);
+    if (activeTab !== "overview") {
+      setColumnDetailKey(null);
+      setExplainStatChange(null);
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -1727,6 +1935,15 @@ function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [columnDetailKey]);
+
+  useEffect(() => {
+    if (!explainStatChange) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setExplainStatChange(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [explainStatChange]);
 
   useEffect(() => {
     if (previousData.length === 0 || currentData.length === 0) {
@@ -2553,9 +2770,9 @@ function App() {
                     textAlign: "left",
                   }}
                 >
-                  Click a card for row-level drill-down, then scrolls to Details
-                  and column risks. Use the command bar to filter (e.g. high risk
-                  only).
+                  Click a card for row-level drill-down, or use{" "}
+                  <strong>Explain</strong> for a plain-language walkthrough.
+                  Filter from the command bar (e.g. high risk only).
                 </p>
 
                 <div
@@ -2624,66 +2841,229 @@ function App() {
                       const primaryImpact = sc.impactLines[0];
                       const isSelected = selectedChange?.id === sc.id;
                       return (
-                        <button
+                        <div
                           key={sc.id}
-                          type="button"
-                          onClick={() => handleStatChangeClick(sc)}
                           style={{
-                            ...insightCardStyle,
                             margin: 0,
-                            textAlign: "left",
-                            cursor: "pointer",
-                            width: "100%",
-                            boxSizing: "border-box",
-                            padding: "18px 20px",
-                            background: cardBg,
+                            borderRadius: "10px",
                             border: `1px solid ${cardBorder}`,
                             borderLeft: `5px solid ${
                               isSelected ? "var(--accent)" : cardBorder
                             }`,
+                            background: cardBg,
                             boxShadow: isSelected
                               ? "var(--shadow), 0 0 0 2px var(--accent)"
                               : "var(--shadow)",
+                            boxSizing: "border-box",
+                            overflow: "hidden",
                           }}
                         >
+                          <button
+                            type="button"
+                            onClick={() => handleStatChangeClick(sc)}
+                            style={{
+                              width: "100%",
+                              margin: 0,
+                              textAlign: "left",
+                              cursor: "pointer",
+                              boxSizing: "border-box",
+                              padding: "18px 20px",
+                              background: "transparent",
+                              border: "none",
+                              fontFamily: "inherit",
+                              color: "inherit",
+                              display: "block",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                letterSpacing: "0.08em",
+                                color: tagColor,
+                                marginBottom: "10px",
+                              }}
+                            >
+                              {tag}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "16px",
+                                fontWeight: 600,
+                                color: "var(--text-h)",
+                                lineHeight: 1.4,
+                                marginBottom: primaryImpact ? "10px" : 0,
+                              }}
+                            >
+                              {formatStatChangeBullet(sc)}
+                            </div>
+                            {primaryImpact ? (
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  color: "var(--text)",
+                                  lineHeight: 1.45,
+                                }}
+                              >
+                                → {primaryImpact}
+                              </div>
+                            ) : null}
+                          </button>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              gap: "8px",
+                              padding: "0 16px 14px",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setExplainStatChange(sc)}
+                              className="app-ghost-btn"
+                              style={{
+                                padding: "8px 14px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                background: "var(--bg)",
+                                color: "var(--accent)",
+                                fontWeight: 600,
+                                fontSize: "13px",
+                                fontFamily: "inherit",
+                                cursor: "pointer",
+                              }}
+                            >
+                              ✨ Explain
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {explainStatChange && aiExplainPayload ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Close AI explain panel"
+                      onClick={() => setExplainStatChange(null)}
+                      style={{
+                        position: "fixed",
+                        inset: 0,
+                        zIndex: 38,
+                        border: "none",
+                        padding: 0,
+                        margin: 0,
+                        background: "rgba(15, 18, 28, 0.2)",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <aside
+                      style={{
+                        position: "fixed",
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        width: "min(400px, 94vw)",
+                        zIndex: 39,
+                        background: "var(--bg)",
+                        borderLeft: "1px solid var(--border)",
+                        boxShadow: "-12px 0 40px rgba(0,0,0,0.12)",
+                        overflowY: "auto",
+                        padding: "22px 20px 100px",
+                        boxSizing: "border-box",
+                        textAlign: "left",
+                      }}
+                      aria-labelledby="ai-explain-title"
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          marginBottom: "18px",
+                        }}
+                      >
+                        <div>
                           <div
                             style={{
                               fontSize: "11px",
                               fontWeight: 700,
                               letterSpacing: "0.08em",
-                              color: tagColor,
-                              marginBottom: "10px",
+                              textTransform: "uppercase",
+                              color: "var(--accent)",
+                              marginBottom: "6px",
                             }}
                           >
-                            {tag}
+                            AI explain
                           </div>
-                          <div
+                          <h2
+                            id="ai-explain-title"
                             style={{
-                              fontSize: "16px",
-                              fontWeight: 600,
+                              margin: 0,
+                              fontSize: "17px",
+                              fontWeight: 700,
                               color: "var(--text-h)",
-                              lineHeight: 1.4,
-                              marginBottom: primaryImpact ? "10px" : 0,
+                              lineHeight: 1.35,
                             }}
                           >
-                            {formatStatChangeBullet(sc)}
-                          </div>
-                          {primaryImpact ? (
-                            <div
-                              style={{
-                                fontSize: "14px",
-                                color: "var(--text)",
-                                lineHeight: 1.45,
-                              }}
-                            >
-                              → {primaryImpact}
-                            </div>
-                          ) : null}
+                            {aiExplainPayload.title}
+                          </h2>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setExplainStatChange(null)}
+                          className="app-ghost-btn"
+                          style={{
+                            flexShrink: 0,
+                            padding: "6px 12px",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            background: "var(--social-bg)",
+                            color: "var(--text-h)",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Close
                         </button>
-                      );
-                    })
-                  )}
-                </div>
+                      </div>
+
+                      <div style={{ marginBottom: "4px", ...aiExplainSectionLabelStyle }}>
+                        ⚠️ What changed
+                      </div>
+                      <p style={aiExplainSectionBodyStyle}>
+                        {aiExplainPayload.whatChanged}
+                      </p>
+
+                      <div style={{ marginBottom: "4px", ...aiExplainSectionLabelStyle }}>
+                        ⚠️ Impact
+                      </div>
+                      <p style={aiExplainSectionBodyStyle}>
+                        {aiExplainPayload.impact}
+                      </p>
+
+                      <div style={{ marginBottom: "4px", ...aiExplainSectionLabelStyle }}>
+                        ⚠️ Likely cause
+                      </div>
+                      <p style={aiExplainSectionBodyStyle}>
+                        {aiExplainPayload.likelyCause}
+                      </p>
+
+                      <div style={{ marginBottom: "4px", ...aiExplainSectionLabelStyle }}>
+                        💡 Suggested action
+                      </div>
+                      <p style={{ ...aiExplainSectionBodyStyle, marginBottom: 0 }}>
+                        {aiExplainPayload.suggestedAction}
+                      </p>
+                    </aside>
+                  </>
+                ) : null}
 
                 <div
                   id="overview-drill-down"
