@@ -1529,6 +1529,19 @@ const chatSuggestionButtonStyle = {
   transition: "background 0.15s ease, border-color 0.15s ease",
 };
 
+const copilotBarChipStyle = {
+  padding: "5px 10px",
+  fontSize: "13px",
+  fontFamily: "inherit",
+  lineHeight: 1.35,
+  borderRadius: "6px",
+  border: "1px solid var(--border)",
+  background: "var(--social-bg)",
+  color: "var(--text-h)",
+  cursor: "pointer",
+  transition: "background 0.15s ease, border-color 0.15s ease",
+};
+
 const authInputStyle = {
   width: "100%",
   boxSizing: "border-box",
@@ -1735,6 +1748,7 @@ function App() {
   const [problemRowsOnly, setProblemRowsOnly] = useState(false);
   const [columnDetailKey, setColumnDetailKey] = useState(null);
   const [explainStatChange, setExplainStatChange] = useState(null);
+  const [feedCardHoverId, setFeedCardHoverId] = useState(null);
 
   const columns = useMemo(
     () => buildColumnsFromCurrentOnly(currentData),
@@ -1918,6 +1932,8 @@ function App() {
     setProblemRowsOnly(false);
     setColumnDetailKey(null);
     setExplainStatChange(null);
+    setDismissed(false);
+    setFeedCardHoverId(null);
   }, [previousFileName, currentFileName, previousData.length, currentData.length]);
 
   useEffect(() => {
@@ -2257,7 +2273,7 @@ function App() {
         </div>
         {activeTab === "overview" &&
         overviewHasData &&
-        firstHighRisk &&
+        highRiskCount > 0 &&
         !dismissed ? (
           <div
             style={{
@@ -2840,22 +2856,29 @@ function App() {
                             : "var(--border)";
                       const primaryImpact = sc.impactLines[0];
                       const isSelected = selectedChange?.id === sc.id;
+                      const isHovered = feedCardHoverId === sc.id;
                       return (
                         <div
                           key={sc.id}
+                          onMouseEnter={() => setFeedCardHoverId(sc.id)}
+                          onMouseLeave={() => setFeedCardHoverId(null)}
                           style={{
                             margin: 0,
                             borderRadius: "10px",
                             border: `1px solid ${cardBorder}`,
-                            borderLeft: `5px solid ${
-                              isSelected ? "var(--accent)" : cardBorder
-                            }`,
+                            borderLeftWidth: isSelected ? 6 : 5,
+                            borderLeftStyle: "solid",
+                            borderLeftColor: isSelected
+                              ? "var(--accent)"
+                              : cardBorder,
                             background: cardBg,
                             boxShadow: isSelected
                               ? "var(--shadow), 0 0 0 2px var(--accent)"
                               : "var(--shadow)",
                             boxSizing: "border-box",
                             overflow: "hidden",
+                            filter: isHovered ? "brightness(0.96)" : undefined,
+                            transition: "filter 0.15s ease, border-left-width 0.12s ease",
                           }}
                         >
                           <button
@@ -2867,7 +2890,7 @@ function App() {
                               textAlign: "left",
                               cursor: "pointer",
                               boxSizing: "border-box",
-                              padding: "18px 20px",
+                              padding: "18px 20px 12px",
                               background: "transparent",
                               border: "none",
                               fontFamily: "inherit",
@@ -2903,11 +2926,25 @@ function App() {
                                   fontSize: "14px",
                                   color: "var(--text)",
                                   lineHeight: 1.45,
+                                  marginBottom: "10px",
                                 }}
                               >
                                 → {primaryImpact}
                               </div>
                             ) : null}
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "flex-end",
+                                alignItems: "center",
+                                marginTop: primaryImpact ? 0 : "4px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                color: "var(--accent)",
+                              }}
+                            >
+                              View details →
+                            </div>
                           </button>
                           <div
                             style={{
@@ -5938,14 +5975,7 @@ function App() {
             </div>
           ) : null}
 
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
+          <div style={{ marginBottom: "8px" }}>
             <button
               type="button"
               onClick={() => setCopilotHistoryExpanded((x) => !x)}
@@ -5966,54 +5996,76 @@ function App() {
             >
               {copilotHistoryExpanded ? "Hide" : "History"}
             </button>
-            <form
-              onSubmit={handleCopilotSend}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: "6px",
+              marginBottom: "10px",
+            }}
+          >
+            {CHAT_SUGGESTIONS.map((s) => (
+              <button
+                key={s.prompt}
+                type="button"
+                className="app-ghost-btn"
+                onClick={() => sendChatMessage(s.prompt)}
+                style={copilotBarChipStyle}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <form
+            onSubmit={handleCopilotSend}
+            style={{
+              display: "flex",
+              gap: "8px",
+              alignItems: "stretch",
+              width: "100%",
+            }}
+          >
+            <input
+              type="text"
+              value={copilotInput}
+              onChange={(e) => setCopilotInput(e.target.value)}
+              placeholder="Command — e.g. compare customers today vs yesterday, high risk only, go to sources…"
+              aria-label="Copilot command"
               style={{
-                display: "flex",
                 flex: 1,
-                gap: "8px",
-                alignItems: "stretch",
-                minWidth: "min(100%, 240px)",
+                minWidth: 0,
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                fontSize: "14px",
+                fontFamily: "inherit",
+                background: "var(--bg)",
+                color: "var(--text-h)",
+              }}
+            />
+            <button
+              type="submit"
+              className="app-primary-btn"
+              style={{
+                padding: "10px 16px",
+                borderRadius: "8px",
+                border: "1px solid var(--accent-border)",
+                background: "var(--accent-bg)",
+                color: "var(--accent)",
+                fontWeight: 600,
+                fontSize: "14px",
+                fontFamily: "inherit",
+                cursor: "pointer",
+                flexShrink: 0,
               }}
             >
-              <input
-                type="text"
-                value={copilotInput}
-                onChange={(e) => setCopilotInput(e.target.value)}
-                placeholder="Command — e.g. compare customers today vs yesterday, high risk only, go to sources…"
-                aria-label="Copilot command"
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  padding: "10px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  fontSize: "14px",
-                  fontFamily: "inherit",
-                  background: "var(--bg)",
-                  color: "var(--text-h)",
-                }}
-              />
-              <button
-                type="submit"
-                className="app-primary-btn"
-                style={{
-                  padding: "10px 16px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--accent-border)",
-                  background: "var(--accent-bg)",
-                  color: "var(--accent)",
-                  fontWeight: 600,
-                  fontSize: "14px",
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
-              >
-                Run
-              </button>
-            </form>
-          </div>
+              Run
+            </button>
+          </form>
           <div
             style={{
               display: "flex",
