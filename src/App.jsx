@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import UnlockdbLogo from "./UnlockdbLogo.jsx";
+import { askClaude } from "./claudeApi.js";
 
 let lastSnapshotKeyForHistory = "";
 
@@ -651,6 +652,59 @@ function findRiskForStatChange(statChange, riskFindings) {
   return riskFindings.find((r) => r.id === statChange.columnKey) ?? null;
 }
 
+function buildExplainClaudeContext(statChange, previousData, currentData, drillSlice) {
+  return {
+    columnKey: statChange.columnKey,
+    columnLabel: statChange.columnLabel,
+    changeText: statChange.changeText,
+    tier: statChange.tier,
+    impactLines: statChange.impactLines,
+    previousRowCount: previousData.length,
+    currentRowCount: currentData.length,
+    drillDownRows: drillSlice,
+  };
+}
+
+function buildChatClaudeContext(ctx) {
+  return {
+    columns: ctx.columns.map((c) => ({ key: c.key, label: c.label })),
+    diffSummaryBullets: ctx.diffSummaryBullets,
+    diffSummaryParagraph: ctx.diffSummaryParagraph,
+    risks: ctx.riskFindings.map((r) => ({
+      severity: r.severity,
+      headline: r.headline,
+    })),
+    rowCounts: {
+      previous: ctx.previousData.length,
+      current: ctx.currentData.length,
+    },
+  };
+}
+
+function formatClaudeChatAssistantText(result) {
+  if (result == null || typeof result === "string") return null;
+  if (typeof result === "object") {
+    const w = result.whatChanged ?? "";
+    const i = result.impact ?? "";
+    const l = result.likelyCause ?? "";
+    const s = result.suggestedAction ?? "";
+    return [
+      "What changed",
+      w,
+      "",
+      "Impact",
+      i,
+      "",
+      "Likely cause",
+      l,
+      "",
+      "Suggested action",
+      s,
+    ].join("\n");
+  }
+  return null;
+}
+
 function buildAiExplainForStatChange(statChange, riskFindings) {
   const risk = findRiskForStatChange(statChange, riskFindings);
   const kind = inferExplainChangeKind(statChange);
@@ -760,6 +814,11 @@ function buildAiExplainForStatChange(statChange, riskFindings) {
     suggestedAction,
   };
 }
+
+const loadingDotStyle = {
+  display: "inline-block",
+  animation: "pulse 1.5s ease-in-out infinite",
+};
 
 const aiExplainSectionLabelStyle = {
   fontSize: "12px",
@@ -1920,6 +1979,9 @@ function App() {
   const [problemRowsOnly, setProblemRowsOnly] = useState(false);
   const [columnDetailKey, setColumnDetailKey] = useState(null);
   const [explainStatChange, setExplainStatChange] = useState(null);
+  const [explainClaudeLoading, setExplainClaudeLoading] = useState(false);
+  const [explainMergedPayload, setExplainMergedPayload] = useState(null);
+  const [autoAnalysis, setAutoAnalysis] = useState(null);
   const [feedCardHoverId, setFeedCardHoverId] = useState(null);
   const [nullRateIncreaseThreshold, setNullRateIncreaseThreshold] =
     useState(5);
@@ -2082,7 +2144,7 @@ function App() {
     previousData,
   ]);
 
-  const aiExplainPayload = useMemo(() => {
+  const explainBasePayload = useMemo(() => {
     if (!explainStatChange) return null;
     return buildAiExplainForStatChange(explainStatChange, riskFindings);
   }, [explainStatChange, riskFindings]);
@@ -2158,6 +2220,7 @@ function App() {
     setFeedCardHoverId(null);
     setAcknowledgedChangeIds([]);
     setAcknowledgedChangeEntries([]);
+    setAutoAnalysis(null);
   }, [previousFileName, currentFileName, previousData.length, currentData.length]);
 
   useEffect(() => {
@@ -2184,6 +2247,122 @@ function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [explainStatChange]);
+
+  useEffect(() => {
+    if (!explainStatChange) {
+      setExplainClaudeLoading(false);
+      setExplainMergedPayload(null);
+    }
+  }, [explainStatChange]);
+
+  useEffect(() => {
+    if (!explainStatChange) return;
+    let cancelled = false;
+    const base = buildAiExplainForStatChange(
+      explainStatChange,
+      riskFindings
+    );
+    (async () => {
+      try {
+        const drillSlice = getDrillDownRows(
+          explainStatChange,
+          previousData,
+          currentData
+        ).slice(0, 5);
+        const ctx = buildExplainClaudeContext(
+          explainStatChange,
+          previousData,
+          currentData,
+          drillSlice
+        );
+        const prompt =
+          String(explainStatChange.changeText ?? "").trim() || base.title;
+        const result = await askClaude(prompt, ctx);
+        if (cancelled) return;
+        if (typeof result === "string") {
+          setExplainMergedPayload(base);
+        } else if (result && typeof result === "object") {
+          setExplainMergedPayload({
+            ...base,
+            whatChanged: result.whatChanged ?? base.whatChanged,
+            impact: result.impact ?? base.impact,
+            likelyCause: result.likelyCause ?? base.likelyCause,
+            suggestedAction:
+              result.suggestedAction ?? base.suggestedAction,
+          });
+        } else {
+          setExplainMergedPayload(base);
+        }
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setExplainMergedPayload(
+            buildAiExplainForStatChange(explainStatChange, riskFindings)
+          );
+        }
+      } finally {
+        if (!cancelled) setExplainClaudeLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [explainStatChange, riskFindings, previousData, currentData]);
+
+  useEffect(() => {
+    if (previousData.length === 0 || currentData.length === 0) {
+      setAutoAnalysis(null);
+      return;
+    }
+    const sc = statChanges.find((s) => s.tier === "HIGH");
+    if (!sc) {
+      setAutoAnalysis(null);
+      return;
+    }
+    let cancelled = false;
+    const tid = window.setTimeout(() => {
+      (async () => {
+        try {
+          const drillSlice = getDrillDownRows(
+            sc,
+            previousData,
+            currentData
+          ).slice(0, 5);
+          const ctx = buildExplainClaudeContext(
+            sc,
+            previousData,
+            currentData,
+            drillSlice
+          );
+          const prompt = String(sc.changeText ?? "").trim();
+          const result = await askClaude(prompt || "High-risk data change", ctx);
+          if (cancelled) return;
+          if (typeof result === "object" && result?.whatChanged) {
+            setAutoAnalysis({
+              whatChanged: result.whatChanged,
+              impact: result.impact ?? "",
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+    }, 1000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(tid);
+    };
+  }, [
+    previousFileName,
+    currentFileName,
+    previousData.length,
+    currentData.length,
+    firstHighStatChange?.id,
+    firstHighStatChange?.changeText,
+    previousData,
+    currentData,
+    statChanges,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -2429,6 +2608,12 @@ function App() {
     triggerDrillNavigation(statChange);
   }
 
+  function handleOpenAiExplainPanel(statChange) {
+    setExplainStatChange(statChange);
+    setExplainClaudeLoading(true);
+    setExplainMergedPayload(null);
+  }
+
   function sendChatMessage(text) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -2447,10 +2632,80 @@ function App() {
       runSnowflakeDemoDataset,
       triggerDrillNavigation,
     });
-    const reply = copilotReply ?? chatReply(trimmed, chatContext);
+    if (copilotReply != null) {
+      const base = ++chatMessageIdRef.current;
+      setCommandResult({
+        copilot: true,
+        query: trimmed,
+        replyPreview: copilotReply.split("\n")[0]?.slice(0, 120) ?? "",
+      });
+      setMessages((prev) => [
+        ...prev,
+        { id: `${base}-u`, role: "user", text: trimmed },
+        { id: `${base}-a`, role: "assistant", text: copilotReply },
+      ]);
+      return;
+    }
+    const intent = detectChatIntent(trimmed);
+    if (intent === "fallback") {
+      const base = ++chatMessageIdRef.current;
+      const assistantId = `${base}-a`;
+      setCommandResult({
+        copilot: false,
+        query: trimmed,
+        replyPreview: "Thinking…",
+      });
+      setMessages((prev) => [
+        ...prev,
+        { id: `${base}-u`, role: "user", text: trimmed },
+        {
+          id: assistantId,
+          role: "assistant",
+          text: "Thinking...",
+          pending: true,
+        },
+      ]);
+      (async () => {
+        try {
+          const ctx = buildChatClaudeContext(chatContext);
+          const result = await askClaude(trimmed, ctx);
+          const formatted = formatClaudeChatAssistantText(result);
+          const finalText = formatted ?? chatReply(trimmed, chatContext);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId && m.pending
+                ? { ...m, text: finalText, pending: false }
+                : m
+            )
+          );
+          setCommandResult({
+            copilot: false,
+            query: trimmed,
+            replyPreview: finalText.split("\n")[0]?.slice(0, 120) ?? "",
+          });
+        } catch (e) {
+          console.error(e);
+          const fb = chatReply(trimmed, chatContext);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId && m.pending
+                ? { ...m, text: fb, pending: false }
+                : m
+            )
+          );
+          setCommandResult({
+            copilot: false,
+            query: trimmed,
+            replyPreview: fb.split("\n")[0]?.slice(0, 120) ?? "",
+          });
+        }
+      })();
+      return;
+    }
+    const reply = chatReply(trimmed, chatContext);
     const base = ++chatMessageIdRef.current;
     setCommandResult({
-      copilot: copilotReply != null,
+      copilot: false,
       query: trimmed,
       replyPreview: reply.split("\n")[0]?.slice(0, 120) ?? "",
     });
@@ -3173,6 +3428,52 @@ function App() {
                     margin: "0 auto 28px",
                   }}
                 >
+                  {autoAnalysis && statChanges.length > 0 ? (
+                    <div
+                      style={{
+                        ...insightCardStyle,
+                        margin: 0,
+                        padding: "16px 18px",
+                        border: "1px solid var(--accent-border)",
+                        background: "var(--accent-bg)",
+                        boxShadow: "0 0 12px rgba(124, 58, 237, 0.12)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          color: "var(--accent)",
+                          marginBottom: "10px",
+                        }}
+                      >
+                        🤖 AI Analysis
+                      </div>
+                      <p
+                        style={{
+                          margin: "0 0 8px",
+                          fontSize: "15px",
+                          fontWeight: 600,
+                          color: "var(--text-h)",
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        {autoAnalysis.whatChanged}
+                      </p>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: "14px",
+                          color: "var(--text)",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {autoAnalysis.impact}
+                      </p>
+                    </div>
+                  ) : null}
                   {statChanges.length === 0 ? (
                     <div
                       style={{
@@ -3350,7 +3651,7 @@ function App() {
                           >
                             <button
                               type="button"
-                              onClick={() => setExplainStatChange(sc)}
+                              onClick={() => handleOpenAiExplainPanel(sc)}
                               className="app-ghost-btn"
                               style={{
                                 padding: "8px 14px",
@@ -3426,7 +3727,7 @@ function App() {
                   </p>
                 ) : null}
 
-                {explainStatChange && aiExplainPayload ? (
+                {explainStatChange && explainBasePayload ? (
                   <>
                     <button
                       type="button"
@@ -3493,7 +3794,7 @@ function App() {
                               lineHeight: 1.35,
                             }}
                           >
-                            {aiExplainPayload.title}
+                            {explainBasePayload.title}
                           </h2>
                         </div>
                         <button
@@ -3517,33 +3818,79 @@ function App() {
                         </button>
                       </div>
 
-                      <div style={{ marginBottom: "4px", ...aiExplainSectionLabelStyle }}>
-                        ⚠️ What changed
-                      </div>
-                      <p style={aiExplainSectionBodyStyle}>
-                        {aiExplainPayload.whatChanged}
-                      </p>
+                      {explainClaudeLoading && !explainMergedPayload ? (
+                        <p
+                          style={{
+                            margin: "0 0 20px",
+                            fontSize: "14px",
+                            color: "var(--text)",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          <span style={loadingDotStyle} aria-hidden>
+                            ●
+                          </span>{" "}
+                          Analyzing with Claude...
+                        </p>
+                      ) : (
+                        <>
+                          <div
+                            style={{
+                              marginBottom: "4px",
+                              ...aiExplainSectionLabelStyle,
+                            }}
+                          >
+                            ⚠️ What changed
+                          </div>
+                          <p style={aiExplainSectionBodyStyle}>
+                            {(explainMergedPayload ?? explainBasePayload)
+                              .whatChanged}
+                          </p>
 
-                      <div style={{ marginBottom: "4px", ...aiExplainSectionLabelStyle }}>
-                        ⚠️ Impact
-                      </div>
-                      <p style={aiExplainSectionBodyStyle}>
-                        {aiExplainPayload.impact}
-                      </p>
+                          <div
+                            style={{
+                              marginBottom: "4px",
+                              ...aiExplainSectionLabelStyle,
+                            }}
+                          >
+                            ⚠️ Impact
+                          </div>
+                          <p style={aiExplainSectionBodyStyle}>
+                            {(explainMergedPayload ?? explainBasePayload).impact}
+                          </p>
 
-                      <div style={{ marginBottom: "4px", ...aiExplainSectionLabelStyle }}>
-                        ⚠️ Likely cause
-                      </div>
-                      <p style={aiExplainSectionBodyStyle}>
-                        {aiExplainPayload.likelyCause}
-                      </p>
+                          <div
+                            style={{
+                              marginBottom: "4px",
+                              ...aiExplainSectionLabelStyle,
+                            }}
+                          >
+                            ⚠️ Likely cause
+                          </div>
+                          <p style={aiExplainSectionBodyStyle}>
+                            {(explainMergedPayload ?? explainBasePayload)
+                              .likelyCause}
+                          </p>
 
-                      <div style={{ marginBottom: "4px", ...aiExplainSectionLabelStyle }}>
-                        💡 Suggested action
-                      </div>
-                      <p style={{ ...aiExplainSectionBodyStyle, marginBottom: 0 }}>
-                        {aiExplainPayload.suggestedAction}
-                      </p>
+                          <div
+                            style={{
+                              marginBottom: "4px",
+                              ...aiExplainSectionLabelStyle,
+                            }}
+                          >
+                            💡 Suggested action
+                          </div>
+                          <p
+                            style={{
+                              ...aiExplainSectionBodyStyle,
+                              marginBottom: 0,
+                            }}
+                          >
+                            {(explainMergedPayload ?? explainBasePayload)
+                              .suggestedAction}
+                          </p>
+                        </>
+                      )}
                     </aside>
                   </>
                 ) : null}
