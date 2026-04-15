@@ -1,3 +1,37 @@
+function parseClaudeAnalysisJsonText(raw) {
+  if (raw == null || typeof raw !== "string") return null;
+  let t = raw.trim();
+  const fenced = /^```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n?```\s*$/i.exec(t);
+  if (fenced) t = fenced[1].trim();
+  const tryParse = (s) => {
+    try {
+      const o = JSON.parse(s);
+      if (o && typeof o === "object") {
+        const str = (v) =>
+          v == null ? "" : typeof v === "string" ? v : String(v);
+        return {
+          whatChanged: str(o.whatChanged),
+          impact: str(o.impact),
+          likelyCause: str(o.likelyCause),
+          suggestedAction: str(o.suggestedAction),
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  };
+  const direct = tryParse(t);
+  if (direct) return direct;
+  const i = t.indexOf("{");
+  const j = t.lastIndexOf("}");
+  if (i >= 0 && j > i) {
+    const inner = tryParse(t.slice(i, j + 1));
+    if (inner) return inner;
+  }
+  return null;
+}
+
 export async function askClaude(prompt, context) {
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
@@ -48,14 +82,13 @@ ${JSON.stringify(context, null, 2)}`,
   const data = await response.json();
   const text = data.content[0].text;
 
-  try {
-    return JSON.parse(text);
-  } catch {
-    return {
-      whatChanged: text,
-      impact: "See above",
-      likelyCause: "Unknown",
-      suggestedAction: "Review the change manually",
-    };
-  }
+  const parsed = parseClaudeAnalysisJsonText(text);
+  if (parsed) return parsed;
+
+  return {
+    whatChanged: text.trim().slice(0, 4000),
+    impact: "",
+    likelyCause: "",
+    suggestedAction: "",
+  };
 }

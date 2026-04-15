@@ -2284,11 +2284,12 @@ function App() {
         } else if (result && typeof result === "object") {
           setExplainMergedPayload({
             ...base,
-            whatChanged: result.whatChanged ?? base.whatChanged,
-            impact: result.impact ?? base.impact,
-            likelyCause: result.likelyCause ?? base.likelyCause,
-            suggestedAction:
-              result.suggestedAction ?? base.suggestedAction,
+            whatChanged: String(result.whatChanged ?? base.whatChanged),
+            impact: String(result.impact ?? base.impact),
+            likelyCause: String(result.likelyCause ?? base.likelyCause),
+            suggestedAction: String(
+              result.suggestedAction ?? base.suggestedAction
+            ),
           });
         } else {
           setExplainMergedPayload(base);
@@ -2337,10 +2338,14 @@ function App() {
           const prompt = String(sc.changeText ?? "").trim();
           const result = await askClaude(prompt || "High-risk data change", ctx);
           if (cancelled) return;
-          if (typeof result === "object" && result?.whatChanged) {
+          if (typeof result === "string") {
+            setAutoAnalysis(result);
+          } else if (typeof result === "object" && result != null) {
             setAutoAnalysis({
-              whatChanged: result.whatChanged,
-              impact: result.impact ?? "",
+              whatChanged: String(result.whatChanged ?? ""),
+              impact: String(result.impact ?? ""),
+              likelyCause: String(result.likelyCause ?? ""),
+              suggestedAction: String(result.suggestedAction ?? ""),
             });
           }
         } catch (e) {
@@ -3451,27 +3456,114 @@ function App() {
                       >
                         🤖 AI Analysis
                       </div>
-                      <p
-                        style={{
-                          margin: "0 0 8px",
-                          fontSize: "15px",
-                          fontWeight: 600,
-                          color: "var(--text-h)",
-                          lineHeight: 1.45,
-                        }}
-                      >
-                        {autoAnalysis.whatChanged}
-                      </p>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: "14px",
-                          color: "var(--text)",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {autoAnalysis.impact}
-                      </p>
+                      {typeof autoAnalysis === "string" ? (
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "14px",
+                            color: "var(--text)",
+                            lineHeight: 1.5,
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {autoAnalysis}
+                        </p>
+                      ) : (
+                        <>
+                          <div style={{ marginBottom: "14px" }}>
+                            <strong
+                              style={{
+                                display: "block",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                color: "var(--text-h)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              What changed
+                            </strong>
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "14px",
+                                color: "var(--text)",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {autoAnalysis.whatChanged}
+                            </p>
+                          </div>
+                          <div style={{ marginBottom: "14px" }}>
+                            <strong
+                              style={{
+                                display: "block",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                color: "var(--text-h)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              Impact
+                            </strong>
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "14px",
+                                color: "var(--text)",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {autoAnalysis.impact}
+                            </p>
+                          </div>
+                          <div style={{ marginBottom: "14px" }}>
+                            <strong
+                              style={{
+                                display: "block",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                color: "var(--text-h)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              Likely cause
+                            </strong>
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "14px",
+                                color: "var(--text)",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {autoAnalysis.likelyCause}
+                            </p>
+                          </div>
+                          <div style={{ marginBottom: 0 }}>
+                            <strong
+                              style={{
+                                display: "block",
+                                fontSize: "12px",
+                                fontWeight: 700,
+                                color: "var(--text-h)",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              Suggested action
+                            </strong>
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: "14px",
+                                color: "var(--text)",
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {autoAnalysis.suggestedAction}
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : null}
                   {statChanges.length === 0 ? (
@@ -3834,61 +3926,91 @@ function App() {
                         </p>
                       ) : (
                         <>
-                          <div
-                            style={{
-                              marginBottom: "4px",
-                              ...aiExplainSectionLabelStyle,
-                            }}
-                          >
-                            ⚠️ What changed
-                          </div>
-                          <p style={aiExplainSectionBodyStyle}>
-                            {(explainMergedPayload ?? explainBasePayload)
-                              .whatChanged}
-                          </p>
-
-                          <div
-                            style={{
-                              marginBottom: "4px",
-                              ...aiExplainSectionLabelStyle,
-                            }}
-                          >
-                            ⚠️ Impact
-                          </div>
-                          <p style={aiExplainSectionBodyStyle}>
-                            {(explainMergedPayload ?? explainBasePayload).impact}
-                          </p>
-
-                          <div
-                            style={{
-                              marginBottom: "4px",
-                              ...aiExplainSectionLabelStyle,
-                            }}
-                          >
-                            ⚠️ Likely cause
-                          </div>
-                          <p style={aiExplainSectionBodyStyle}>
-                            {(explainMergedPayload ?? explainBasePayload)
-                              .likelyCause}
-                          </p>
-
-                          <div
-                            style={{
-                              marginBottom: "4px",
-                              ...aiExplainSectionLabelStyle,
-                            }}
-                          >
-                            💡 Suggested action
-                          </div>
-                          <p
-                            style={{
-                              ...aiExplainSectionBodyStyle,
-                              marginBottom: 0,
-                            }}
-                          >
-                            {(explainMergedPayload ?? explainBasePayload)
-                              .suggestedAction}
-                          </p>
+                          {(() => {
+                            const ep =
+                              explainMergedPayload ?? explainBasePayload;
+                            return (
+                              <>
+                                <div style={{ marginBottom: "14px" }}>
+                                  <strong
+                                    style={{
+                                      display: "block",
+                                      fontSize: "12px",
+                                      fontWeight: 700,
+                                      color: "var(--accent)",
+                                      letterSpacing: "0.05em",
+                                      textTransform: "uppercase",
+                                      marginBottom: "6px",
+                                    }}
+                                  >
+                                    What changed
+                                  </strong>
+                                  <p style={aiExplainSectionBodyStyle}>
+                                    {String(ep.whatChanged ?? "")}
+                                  </p>
+                                </div>
+                                <div style={{ marginBottom: "14px" }}>
+                                  <strong
+                                    style={{
+                                      display: "block",
+                                      fontSize: "12px",
+                                      fontWeight: 700,
+                                      color: "var(--accent)",
+                                      letterSpacing: "0.05em",
+                                      textTransform: "uppercase",
+                                      marginBottom: "6px",
+                                    }}
+                                  >
+                                    Impact
+                                  </strong>
+                                  <p style={aiExplainSectionBodyStyle}>
+                                    {String(ep.impact ?? "")}
+                                  </p>
+                                </div>
+                                <div style={{ marginBottom: "14px" }}>
+                                  <strong
+                                    style={{
+                                      display: "block",
+                                      fontSize: "12px",
+                                      fontWeight: 700,
+                                      color: "var(--accent)",
+                                      letterSpacing: "0.05em",
+                                      textTransform: "uppercase",
+                                      marginBottom: "6px",
+                                    }}
+                                  >
+                                    Likely cause
+                                  </strong>
+                                  <p style={aiExplainSectionBodyStyle}>
+                                    {String(ep.likelyCause ?? "")}
+                                  </p>
+                                </div>
+                                <div style={{ marginBottom: 0 }}>
+                                  <strong
+                                    style={{
+                                      display: "block",
+                                      fontSize: "12px",
+                                      fontWeight: 700,
+                                      color: "var(--accent)",
+                                      letterSpacing: "0.05em",
+                                      textTransform: "uppercase",
+                                      marginBottom: "6px",
+                                    }}
+                                  >
+                                    Suggested action
+                                  </strong>
+                                  <p
+                                    style={{
+                                      ...aiExplainSectionBodyStyle,
+                                      marginBottom: 0,
+                                    }}
+                                  >
+                                    {String(ep.suggestedAction ?? "")}
+                                  </p>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </>
                       )}
                     </aside>
