@@ -393,46 +393,455 @@ const DATA_SOURCE_OPTIONS = [
   { id: "csv", label: "CSV (demo)" },
 ];
 
-const SNOWFLAKE_DEMO_BROWSER_TABLES = [
+const SNOWFLAKE_TABLE_BROWSER = [
   {
-    id: "customers",
-    label: "customers",
+    name: "customers",
+    schema: "analytics.public",
+    rows: 12847,
     columns: 5,
-    rowCount: 1247,
-    synced: "2 min ago",
-    changesDetected: true,
+    lastSync: "2 min ago",
+    status: "issues",
+    hasChanges: true,
+    changeCount: 2,
+    riskLevel: "high",
   },
   {
-    id: "orders",
-    label: "orders",
+    name: "orders",
+    schema: "analytics.public",
+    rows: 84392,
     columns: 8,
-    rowCount: 84392,
-    synced: "2 min ago",
-    changesDetected: false,
+    lastSync: "2 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 1,
+    riskLevel: "medium",
   },
   {
-    id: "events",
-    label: "events",
-    columns: 5,
-    rowCount: 412891,
-    synced: "5 min ago",
-    changesDetected: true,
-  },
-  {
-    id: "sessions",
-    label: "sessions",
+    name: "order_items",
+    schema: "analytics.public",
+    rows: 231847,
     columns: 6,
-    rowCount: 98234,
-    synced: "12 min ago",
-    changesDetected: false,
+    lastSync: "5 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
   },
   {
-    id: "revenue_daily",
-    label: "revenue_daily",
+    name: "products",
+    schema: "analytics.public",
+    rows: 4821,
+    columns: 9,
+    lastSync: "5 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "product_categories",
+    schema: "analytics.public",
+    rows: 48,
+    columns: 3,
+    lastSync: "1 hour ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "sessions",
+    schema: "analytics.public",
+    rows: 98234,
+    columns: 6,
+    lastSync: "12 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 1,
+    riskLevel: "medium",
+  },
+  {
+    name: "revenue_daily",
+    schema: "analytics.public",
+    rows: 365,
     columns: 4,
-    rowCount: 365,
-    synced: "1 hour ago",
-    changesDetected: false,
+    lastSync: "1 hour ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "revenue_monthly",
+    schema: "analytics.public",
+    rows: 36,
+    columns: 5,
+    lastSync: "1 hour ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "tbl_temp_crm_001",
+    schema: "analytics.staging",
+    rows: 2841,
+    columns: 12,
+    lastSync: "3 hours ago",
+    status: "issues",
+    hasChanges: true,
+    changeCount: 4,
+    riskLevel: "high",
+    aiNameSuggestion: "crm_contacts_staging",
+  },
+  {
+    name: "LEGACY_USER_EXPORT_v3",
+    schema: "analytics.staging",
+    rows: 18293,
+    columns: 23,
+    lastSync: "6 hours ago",
+    status: "issues",
+    hasChanges: true,
+    changeCount: 7,
+    riskLevel: "high",
+    aiNameSuggestion: "users_legacy",
+  },
+  {
+    name: "marketing_campaigns",
+    schema: "analytics.public",
+    rows: 847,
+    columns: 11,
+    lastSync: "30 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "campaign_clicks",
+    schema: "analytics.public",
+    rows: 482910,
+    columns: 7,
+    lastSync: "5 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 1,
+    riskLevel: "low",
+  },
+  {
+    name: "user_segments",
+    schema: "analytics.public",
+    rows: 24,
+    columns: 4,
+    lastSync: "1 hour ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "invoices",
+    schema: "analytics.finance",
+    rows: 38291,
+    columns: 9,
+    lastSync: "15 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "payments",
+    schema: "analytics.finance",
+    rows: 29847,
+    columns: 8,
+    lastSync: "15 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 2,
+    riskLevel: "medium",
+  },
+  {
+    name: "subscriptions",
+    schema: "analytics.finance",
+    rows: 8472,
+    columns: 7,
+    lastSync: "30 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "support_tickets",
+    schema: "analytics.public",
+    rows: 14829,
+    columns: 10,
+    lastSync: "10 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "proc_data_final_v2",
+    schema: "analytics.staging",
+    rows: 5821,
+    columns: 18,
+    lastSync: "2 hours ago",
+    status: "issues",
+    hasChanges: true,
+    changeCount: 3,
+    riskLevel: "high",
+    aiNameSuggestion: "processed_transactions",
+  },
+  {
+    name: "geo_regions",
+    schema: "analytics.public",
+    rows: 195,
+    columns: 4,
+    lastSync: "1 day ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "employee_data",
+    schema: "analytics.hr",
+    rows: 284,
+    columns: 15,
+    lastSync: "1 day ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+];
+
+const DATABRICKS_TABLE_BROWSER = [
+  {
+    name: "events",
+    schema: "main.analytics",
+    rows: 412891,
+    columns: 5,
+    lastSync: "1 min ago",
+    status: "issues",
+    hasChanges: true,
+    changeCount: 3,
+    riskLevel: "high",
+  },
+  {
+    name: "page_views",
+    schema: "main.analytics",
+    rows: 1829471,
+    columns: 6,
+    lastSync: "1 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 1,
+    riskLevel: "medium",
+  },
+  {
+    name: "clicks",
+    schema: "main.analytics",
+    rows: 982847,
+    columns: 5,
+    lastSync: "2 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "conversions",
+    schema: "main.analytics",
+    rows: 48291,
+    columns: 7,
+    lastSync: "5 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 2,
+    riskLevel: "medium",
+  },
+  {
+    name: "user_properties",
+    schema: "main.analytics",
+    rows: 98234,
+    columns: 8,
+    lastSync: "10 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "sessions_raw",
+    schema: "main.bronze",
+    rows: 2847291,
+    columns: 4,
+    lastSync: "1 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "sessions_clean",
+    schema: "main.silver",
+    rows: 2841029,
+    columns: 8,
+    lastSync: "5 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 1,
+    riskLevel: "low",
+  },
+  {
+    name: "RAW_EVENTS_BACKUP_0401",
+    schema: "main.bronze",
+    rows: 8472910,
+    columns: 3,
+    lastSync: "2 days ago",
+    status: "issues",
+    hasChanges: true,
+    changeCount: 5,
+    riskLevel: "high",
+    aiNameSuggestion: "events_backup_2024_04",
+  },
+  {
+    name: "ml_training_data",
+    schema: "main.ml",
+    rows: 482910,
+    columns: 24,
+    lastSync: "1 hour ago",
+    status: "issues",
+    hasChanges: true,
+    changeCount: 2,
+    riskLevel: "high",
+  },
+  {
+    name: "ml_predictions",
+    schema: "main.ml",
+    rows: 48291,
+    columns: 6,
+    lastSync: "30 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "feature_store",
+    schema: "main.ml",
+    rows: 98234,
+    columns: 47,
+    lastSync: "15 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 3,
+    riskLevel: "medium",
+  },
+  {
+    name: "temp_analysis_jsmith",
+    schema: "main.sandbox",
+    rows: 1247,
+    columns: 8,
+    lastSync: "3 days ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+    aiNameSuggestion: "customer_analysis_q1",
+  },
+  {
+    name: "product_events",
+    schema: "main.analytics",
+    rows: 284710,
+    columns: 6,
+    lastSync: "2 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "error_logs",
+    schema: "main.monitoring",
+    rows: 84729,
+    columns: 5,
+    lastSync: "1 min ago",
+    status: "issues",
+    hasChanges: true,
+    changeCount: 8,
+    riskLevel: "high",
+  },
+  {
+    name: "pipeline_runs",
+    schema: "main.monitoring",
+    rows: 12847,
+    columns: 7,
+    lastSync: "5 min ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 1,
+    riskLevel: "low",
+  },
+  {
+    name: "data_quality_checks",
+    schema: "main.monitoring",
+    rows: 4821,
+    columns: 6,
+    lastSync: "10 min ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "attribution_model_v4",
+    schema: "main.ml",
+    rows: 28471,
+    columns: 12,
+    lastSync: "2 hours ago",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 2,
+    riskLevel: "medium",
+  },
+  {
+    name: "FINAL_REPORT_DO_NOT_DELETE",
+    schema: "main.sandbox",
+    rows: 847,
+    columns: 9,
+    lastSync: "1 week ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+    aiNameSuggestion: "quarterly_report_archive",
+  },
+  {
+    name: "cohort_analysis",
+    schema: "main.analytics",
+    rows: 2847,
+    columns: 8,
+    lastSync: "1 hour ago",
+    status: "ok",
+    hasChanges: false,
+    changeCount: 0,
+    riskLevel: "none",
+  },
+  {
+    name: "realtime_events",
+    schema: "main.streaming",
+    rows: 9284710,
+    columns: 5,
+    lastSync: "just now",
+    status: "changes",
+    hasChanges: true,
+    changeCount: 1,
+    riskLevel: "low",
   },
 ];
 
@@ -513,9 +922,15 @@ function parseNullPercentPointIncreaseFromChangeText(changeText) {
 function resolveActiveDemoTableIdForAlertSettings(
   selectedSource,
   databricksDemoConnected,
-  snowflakeWarehouseTableDisplay
+  snowflakeWarehouseTableDisplay,
+  databricksWarehouseTableDisplay
 ) {
   if (selectedSource === "databricks" && databricksDemoConnected) {
+    const raw = databricksWarehouseTableDisplay
+      ? String(databricksWarehouseTableDisplay).trim().toLowerCase()
+      : "events";
+    const norm = raw.replace(/\s+/g, "_");
+    if (SETTINGS_ALERT_DEMO_TABLE_IDS.includes(norm)) return norm;
     return "events";
   }
   if (selectedSource === "snowflake" && snowflakeWarehouseTableDisplay) {
@@ -669,14 +1084,15 @@ function buildCopilotSourceLabel(
   selectedSource,
   snowflakeDemoConnected,
   databricksDemoConnected,
-  snowflakeWarehouseTableDisplay
+  snowflakeWarehouseTableDisplay,
+  databricksWarehouseTableDisplay
 ) {
   if (selectedSource === "snowflake" && snowflakeDemoConnected) {
     return `Snowflake · ${snowflakeWarehouseTableDisplay ?? "connected"}`;
   }
   if (selectedSource === "snowflake") return "Snowflake (not connected)";
   if (selectedSource === "databricks" && databricksDemoConnected) {
-    return "Databricks · events";
+    return `Databricks · ${databricksWarehouseTableDisplay ?? "connected"}`;
   }
   if (selectedSource === "databricks") return "Databricks (not connected)";
   if (selectedSource === "csv") return "CSV";
@@ -688,19 +1104,59 @@ function buildCopilotTableLabel(
   selectedSource,
   snowflakeDemoConnected,
   databricksDemoConnected,
-  snowflakeWarehouseTableDisplay
+  snowflakeWarehouseTableDisplay,
+  databricksWarehouseTableDisplay
 ) {
   if (selectedSource === "snowflake" && snowflakeDemoConnected) {
     return snowflakeWarehouseTableDisplay ?? null;
   }
   if (selectedSource === "databricks" && databricksDemoConnected) {
-    return "events";
+    return databricksWarehouseTableDisplay ?? null;
   }
   return null;
 }
 
+function demoTableBrowserStatusDotColor(status) {
+  if (status === "issues") return "var(--risk-high)";
+  if (status === "changes") return "#ca8a04";
+  if (status === "ok") return "#22c55e";
+  return "#9ca3af";
+}
+
+function buildWorkspaceSummaryForClaude(tableBrowserSource, tableBrowserList) {
+  if (!tableBrowserSource || !tableBrowserList?.length) return null;
+  const source =
+    tableBrowserSource === "snowflake" ? "Snowflake" : "Databricks";
+  const tablesWithIssues = tableBrowserList.filter(
+    (t) => t.riskLevel === "high"
+  ).length;
+  const tablesWithChanges = tableBrowserList.filter(
+    (t) => t.hasChanges
+  ).length;
+  return {
+    source,
+    totalTables: tableBrowserList.length,
+    tablesWithIssues,
+    tablesWithChanges,
+    allTables: tableBrowserList.map((t) => ({
+      name: t.name,
+      schema: t.schema,
+      status: t.status,
+      riskLevel: t.riskLevel,
+      changeCount: t.changeCount,
+      lastSync: t.lastSync,
+      aiNameSuggestion: t.aiNameSuggestion ?? null,
+    })),
+  };
+}
+
 function buildCopilotContextPack(ctx, meta) {
   const lines = [];
+  if (meta.workspaceSummary) {
+    lines.push(
+      `Workspace summary:\n${JSON.stringify(meta.workspaceSummary)}`
+    );
+  }
   lines.push(`Source: ${meta.sourceLabel}`);
   if (meta.tableLabel) lines.push(`Table: ${meta.tableLabel}`);
   lines.push(
@@ -729,8 +1185,8 @@ function buildCopilotContextPack(ctx, meta) {
     lines.push(`Recent UI action: ${meta.copilotReply}`);
   }
   let out = lines.join("\n");
-  if (out.length > 2000) {
-    out = `${out.slice(0, 1997)}...`;
+  if (out.length > 3800) {
+    out = `${out.slice(0, 3797)}...`;
   }
   return out;
 }
@@ -1170,7 +1626,7 @@ function tryHandleCopilotCommand(text, deps) {
     if (selectedSource !== "snowflake") selectDataSource("snowflake");
     runSnowflakeDemoDataset();
     setActiveTab("sources");
-    return "Snowflake demo connected. Pick a table under analytics.public in Sources (e.g. customers).";
+    return "Snowflake demo connected. Open Sources and pick a table in the browser (e.g. customers or events for a full comparison).";
   }
 
   if (/\bconnect snowflake\b/.test(q)) {
@@ -1812,6 +2268,21 @@ const CHAT_SUGGESTIONS = [
     label: "Summarize for my team",
     prompt: "Summarize for my team",
   },
+  {
+    id: "tables-issues",
+    label: "Which tables have issues?",
+    prompt: "Which tables have issues?",
+  },
+  {
+    id: "tables-poor-names",
+    label: "Any poorly named tables?",
+    prompt: "Any poorly named tables?",
+  },
+  {
+    id: "riskiest-now",
+    label: "What's riskiest right now?",
+    prompt: "What's riskiest right now?",
+  },
 ];
 
 const chatSuggestionButtonStyle = {
@@ -2000,9 +2471,14 @@ function App() {
     useState(false);
   const [snowflakeWarehouseTableDisplay, setSnowflakeWarehouseTableDisplay] =
     useState(null);
-  const [snowflakeTableSearch, setSnowflakeTableSearch] = useState("");
-  const [snowflakeStubTableId, setSnowflakeStubTableId] = useState(null);
-  const [snowflakeTableRowHoverId, setSnowflakeTableRowHoverId] =
+  const [databricksWarehouseTableDisplay, setDatabricksWarehouseTableDisplay] =
+    useState(null);
+  const [tableBrowserSource, setTableBrowserSource] = useState(null);
+  const [tableBrowserList, setTableBrowserList] = useState([]);
+  const [tableSearchQuery, setTableSearchQuery] = useState("");
+  const [tableBrowserPendingStub, setTableBrowserPendingStub] = useState(null);
+  const [tableBrowserAiNameTipId, setTableBrowserAiNameTipId] = useState(null);
+  const [tableBrowserRowHoverKey, setTableBrowserRowHoverKey] =
     useState(null);
   const [databricksForm, setDatabricksForm] = useState({
     workspaceUrl: "",
@@ -2089,7 +2565,8 @@ function App() {
   const activeAlertSettingsTableId = resolveActiveDemoTableIdForAlertSettings(
     selectedSource,
     databricksDemoConnected,
-    snowflakeWarehouseTableDisplay
+    snowflakeWarehouseTableDisplay,
+    databricksWarehouseTableDisplay
   );
   const activeTableSensitivityForAlerts =
     settingsTableSensitivity[activeAlertSettingsTableId] ?? "normal";
@@ -2122,14 +2599,22 @@ function App() {
       buildAggregatedImpactLines(riskFindings, diffSummaryBullets, columns),
     [riskFindings, diffSummaryBullets, columns]
   );
-  const snowflakeBrowserTablesFiltered = useMemo(() => {
-    const q = snowflakeTableSearch.trim().toLowerCase();
-    if (!q) return SNOWFLAKE_DEMO_BROWSER_TABLES;
-    return SNOWFLAKE_DEMO_BROWSER_TABLES.filter(
-      (t) =>
-        t.label.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)
+  const tableBrowserFiltered = useMemo(() => {
+    const q = tableSearchQuery.trim().toLowerCase();
+    if (!q) return tableBrowserList;
+    return tableBrowserList.filter((t) =>
+      String(t.name ?? "")
+        .toLowerCase()
+        .includes(q)
     );
-  }, [snowflakeTableSearch]);
+  }, [tableBrowserList, tableSearchQuery]);
+
+  const tableBrowserSummary = useMemo(() => {
+    const list = tableBrowserList;
+    const withChanges = list.filter((t) => t.hasChanges).length;
+    const highRisk = list.filter((t) => t.riskLevel === "high").length;
+    return { total: list.length, withChanges, highRisk };
+  }, [tableBrowserList]);
   const overviewHasData = currentData.length > 0 && columns.length > 0;
   const diffSummaryShort =
     (diffSummaryParagraph && diffSummaryParagraph.trim()) ||
@@ -2484,12 +2969,19 @@ function App() {
     reader.readAsText(file);
   }
 
+  function resetTableBrowserState() {
+    setTableBrowserSource(null);
+    setTableBrowserList([]);
+    setTableSearchQuery("");
+    setTableBrowserPendingStub(null);
+    setTableBrowserAiNameTipId(null);
+    setTableBrowserRowHoverKey(null);
+  }
+
   function resetSnowflakeWarehouseBrowserState() {
     setSnowflakeWarehouseDataLoaded(false);
     setSnowflakeWarehouseTableDisplay(null);
-    setSnowflakeTableSearch("");
-    setSnowflakeStubTableId(null);
-    setSnowflakeTableRowHoverId(null);
+    setTableBrowserRowHoverKey(null);
   }
 
   function handlePreviousCsvSelected(e) {
@@ -2500,6 +2992,8 @@ function App() {
       setSnowflakeDemoConnected(false);
       setDatabricksDemoConnected(false);
       resetSnowflakeWarehouseBrowserState();
+      resetTableBrowserState();
+      setDatabricksWarehouseTableDisplay(null);
       setPreviousData(rows);
       setPreviousFileName(file.name);
       input.value = "";
@@ -2514,6 +3008,8 @@ function App() {
       setSnowflakeDemoConnected(false);
       setDatabricksDemoConnected(false);
       resetSnowflakeWarehouseBrowserState();
+      resetTableBrowserState();
+      setDatabricksWarehouseTableDisplay(null);
       setCurrentData(rows);
       setCurrentFileName(file.name);
       input.value = "";
@@ -2525,9 +3021,8 @@ function App() {
     setDatabricksDemoConnected(false);
     setSnowflakeWarehouseDataLoaded(false);
     setSnowflakeWarehouseTableDisplay(null);
-    setSnowflakeTableSearch("");
-    setSnowflakeStubTableId(null);
-    setSnowflakeTableRowHoverId(null);
+    setDatabricksWarehouseTableDisplay(null);
+    resetTableBrowserState();
     setPreviousData(SAMPLE_PREVIOUS_DATA);
     setCurrentData(SAMPLE_CURRENT_DATA);
     setPreviousFileName("sample-previous.csv");
@@ -2560,7 +3055,9 @@ function App() {
     }
     if (id !== "databricks") {
       setDatabricksDemoConnected(false);
+      setDatabricksWarehouseTableDisplay(null);
     }
+    resetTableBrowserState();
   }
 
   function handleDemoConnect(e) {
@@ -2576,10 +3073,16 @@ function App() {
       setSnowflakeDemoConnected(true);
       setDatabricksDemoConnected(false);
       resetSnowflakeWarehouseBrowserState();
+      setDatabricksWarehouseTableDisplay(null);
       setPreviousData([]);
       setCurrentData([]);
       setPreviousFileName("Snowflake · select a table");
       setCurrentFileName("Snowflake · select a table");
+      setTableBrowserSource("snowflake");
+      setTableBrowserList([...SNOWFLAKE_TABLE_BROWSER]);
+      setTableSearchQuery("");
+      setTableBrowserPendingStub(null);
+      setTableBrowserAiNameTipId(null);
     }, 1000);
   }
 
@@ -2590,7 +3093,7 @@ function App() {
   }
 
   function loadSnowflakeWarehouseCustomers() {
-    setSnowflakeStubTableId(null);
+    setTableBrowserPendingStub(null);
     setSnowflakeWarehouseDataLoaded(true);
     setSnowflakeWarehouseTableDisplay("customers");
     setPreviousData(SNOWFLAKE_DEMO_PREVIOUS);
@@ -2601,7 +3104,7 @@ function App() {
   }
 
   function loadSnowflakeWarehouseEvents() {
-    setSnowflakeStubTableId(null);
+    setTableBrowserPendingStub(null);
     setSnowflakeWarehouseDataLoaded(true);
     setSnowflakeWarehouseTableDisplay("events");
     setPreviousData(DATABRICKS_DEMO_PREVIOUS);
@@ -2612,7 +3115,7 @@ function App() {
   }
 
   function loadSnowflakeWarehouseCleanCustomersNoDiff() {
-    setSnowflakeStubTableId(null);
+    setTableBrowserPendingStub(null);
     const snapshot = SNOWFLAKE_DEMO_CURRENT.map((row) => ({ ...row }));
     setSnowflakeWarehouseDataLoaded(true);
     setSnowflakeWarehouseTableDisplay("customers");
@@ -2631,17 +3134,64 @@ function App() {
       setDatabricksDemoConnected(true);
       setSnowflakeDemoConnected(false);
       resetSnowflakeWarehouseBrowserState();
-      setPreviousData(DATABRICKS_DEMO_PREVIOUS);
-      setCurrentData(DATABRICKS_DEMO_CURRENT);
-      setPreviousFileName("Databricks · events (baseline)");
-      setCurrentFileName("Databricks · events (current)");
+      setDatabricksWarehouseTableDisplay(null);
+      setPreviousData([]);
+      setCurrentData([]);
+      setPreviousFileName("Databricks · select a table");
+      setCurrentFileName("Databricks · select a table");
+      setTableBrowserSource("databricks");
+      setTableBrowserList([...DATABRICKS_TABLE_BROWSER]);
+      setTableSearchQuery("");
+      setTableBrowserPendingStub(null);
+      setTableBrowserAiNameTipId(null);
     }, 1000);
+  }
+
+  function loadDatabricksWarehouseEvents() {
+    setSnowflakeWarehouseDataLoaded(false);
+    setSnowflakeWarehouseTableDisplay(null);
+    setTableBrowserPendingStub(null);
+    setDatabricksWarehouseTableDisplay("events");
+    setPreviousData(DATABRICKS_DEMO_PREVIOUS);
+    setCurrentData(DATABRICKS_DEMO_CURRENT);
+    setPreviousFileName("Databricks · events (baseline)");
+    setCurrentFileName("Databricks · events (current)");
+    setActiveTab("overview");
   }
 
   function handleDatabricksDemoConnect(e) {
     e.preventDefault();
     runDatabricksDemoDataset();
-    setActiveTab("overview");
+    setActiveTab("sources");
+  }
+
+  function handleDemoTableBrowserRowClick(tbl) {
+    const name = tbl.name;
+    setTableBrowserAiNameTipId(null);
+    if (tableBrowserSource === "snowflake") {
+      if (name === "customers") {
+        loadSnowflakeWarehouseCustomers();
+      } else if (name === "events") {
+        loadSnowflakeWarehouseEvents();
+      } else {
+        setTableBrowserPendingStub({ name });
+      }
+    } else if (tableBrowserSource === "databricks") {
+      if (name === "events") {
+        loadDatabricksWarehouseEvents();
+      } else {
+        setTableBrowserPendingStub({ name });
+      }
+    }
+  }
+
+  function handleDemoTableBrowserSampleLoad() {
+    if (tableBrowserSource === "snowflake") {
+      loadSnowflakeWarehouseCustomers();
+    } else if (tableBrowserSource === "databricks") {
+      loadDatabricksWarehouseEvents();
+    }
+    setTableBrowserPendingStub(null);
   }
 
   function triggerDrillNavigation(statChange) {
@@ -2715,19 +3265,26 @@ function App() {
         selectedSource,
         snowflakeDemoConnected,
         databricksDemoConnected,
-        snowflakeWarehouseTableDisplay
+        snowflakeWarehouseTableDisplay,
+        databricksWarehouseTableDisplay
       );
       const tableLabel = buildCopilotTableLabel(
         selectedSource,
         snowflakeDemoConnected,
         databricksDemoConnected,
-        snowflakeWarehouseTableDisplay
+        snowflakeWarehouseTableDisplay,
+        databricksWarehouseTableDisplay
+      );
+      const workspaceSummary = buildWorkspaceSummaryForClaude(
+        tableBrowserSource,
+        tableBrowserList
       );
       const packed = buildCopilotContextPack(chatContext, {
         sourceLabel,
         tableLabel,
         impactLines,
         copilotReply,
+        workspaceSummary,
       });
       let finalText = "";
       try {
@@ -3188,7 +3745,8 @@ function App() {
                       </div>
                     </div>
                   </div>
-                ) : databricksDemoConnected ? (
+                ) : databricksDemoConnected &&
+                  databricksWarehouseTableDisplay ? (
                   <div
                     style={{
                       maxWidth: "44rem",
@@ -3212,7 +3770,7 @@ function App() {
                         ·
                       </span>
                       <span style={{ color: "var(--text)" }}>Table: </span>
-                      events
+                      {databricksWarehouseTableDisplay}
                     </div>
                     <div
                       style={{
@@ -3241,7 +3799,7 @@ function App() {
                         <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
                           Table:{" "}
                         </span>
-                        events
+                        {databricksWarehouseTableDisplay}
                       </div>
                     </div>
                   </div>
@@ -5998,7 +6556,7 @@ function App() {
                   style={{
                     fontSize: "13px",
                     color: "var(--text)",
-                    marginBottom: "16px",
+                    marginBottom: "12px",
                     lineHeight: 1.5,
                   }}
                 >
@@ -6019,21 +6577,10 @@ function App() {
                   </span>
                 </div>
 
-                <h2
-                  style={{
-                    margin: "0 0 12px",
-                    fontSize: "18px",
-                    fontWeight: 700,
-                    color: "var(--text-h)",
-                  }}
-                >
-                  analytics.public
-                </h2>
-
                 <input
                   type="search"
-                  value={snowflakeTableSearch}
-                  onChange={(e) => setSnowflakeTableSearch(e.target.value)}
+                  value={tableSearchQuery}
+                  onChange={(e) => setTableSearchQuery(e.target.value)}
                   placeholder="Search tables..."
                   aria-label="Search tables"
                   className="unlockdb-field"
@@ -6042,13 +6589,26 @@ function App() {
                     maxWidth: "28rem",
                     boxSizing: "border-box",
                     padding: "10px 12px",
-                    marginBottom: "14px",
+                    marginBottom: "10px",
                     borderRadius: "8px",
                     fontSize: "14px",
                   }}
                 />
 
-                {snowflakeStubTableId ? (
+                <p
+                  style={{
+                    margin: "0 0 14px",
+                    fontSize: "13px",
+                    color: "var(--text)",
+                  }}
+                >
+                  {tableBrowserSummary.total} tables ·{" "}
+                  {tableBrowserSummary.withChanges} with changes ·{" "}
+                  {tableBrowserSummary.highRisk} high risk
+                </p>
+
+                {tableBrowserPendingStub &&
+                tableBrowserSource === "snowflake" ? (
                   <div
                     style={{
                       marginBottom: "14px",
@@ -6066,12 +6626,12 @@ function App() {
                         color: "var(--text)",
                       }}
                     >
-                      No changes detected in this table since last snapshot.
+                      No baseline snapshot yet
                     </p>
                     <button
                       type="button"
                       className="app-ghost-btn"
-                      onClick={() => loadSnowflakeWarehouseCleanCustomersNoDiff()}
+                      onClick={() => handleDemoTableBrowserSampleLoad()}
                       style={{
                         padding: "8px 14px",
                         fontSize: "13px",
@@ -6084,7 +6644,7 @@ function App() {
                         fontFamily: "inherit",
                       }}
                     >
-                      View table anyway →
+                      Load sample comparison →
                     </button>
                   </div>
                 ) : null}
@@ -6096,7 +6656,7 @@ function App() {
                     gap: "10px",
                   }}
                 >
-                  {snowflakeBrowserTablesFiltered.length === 0 ? (
+                  {tableBrowserFiltered.length === 0 ? (
                     <p
                       style={{
                         margin: 0,
@@ -6107,40 +6667,39 @@ function App() {
                       No tables match your search.
                     </p>
                   ) : (
-                    snowflakeBrowserTablesFiltered.map((tbl) => {
+                    tableBrowserFiltered.map((tbl) => {
+                      const rowKey = `snowflake:${tbl.name}`;
                       const isActive =
                         snowflakeWarehouseDataLoaded &&
-                        snowflakeWarehouseTableDisplay === tbl.label;
+                        snowflakeWarehouseTableDisplay === tbl.name;
                       const isHover =
-                        snowflakeTableRowHoverId === tbl.id && !isActive;
+                        tableBrowserRowHoverKey === rowKey && !isActive;
                       return (
                         <button
-                          key={tbl.id}
+                          key={tbl.name}
                           type="button"
-                          onMouseEnter={() => setSnowflakeTableRowHoverId(tbl.id)}
-                          onMouseLeave={() => setSnowflakeTableRowHoverId(null)}
-                          onClick={() => {
-                            if (tbl.id === "customers") {
-                              loadSnowflakeWarehouseCustomers();
-                            } else if (tbl.id === "events") {
-                              loadSnowflakeWarehouseEvents();
-                            } else {
-                              setSnowflakeStubTableId(tbl.id);
-                            }
-                          }}
+                          onMouseEnter={() =>
+                            setTableBrowserRowHoverKey(rowKey)
+                          }
+                          onMouseLeave={() =>
+                            setTableBrowserRowHoverKey(null)
+                          }
+                          onClick={() => handleDemoTableBrowserRowClick(tbl)}
                           style={{
                             display: "flex",
                             flexWrap: "wrap",
                             alignItems: "flex-start",
                             justifyContent: "space-between",
-                            gap: "10px",
+                            gap: "12px",
                             width: "100%",
                             boxSizing: "border-box",
                             textAlign: "left",
                             padding: "14px 16px",
                             borderRadius: "10px",
                             border: `1px solid ${
-                              isActive ? "var(--accent-border)" : "var(--border)"
+                              isActive
+                                ? "var(--accent-border)"
+                                : "var(--border)"
                             }`,
                             borderLeftWidth: isActive ? 4 : 1,
                             borderLeftColor: isActive
@@ -6156,26 +6715,100 @@ function App() {
                               "background 0.15s ease, border-color 0.15s ease",
                           }}
                         >
-                          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "12px",
+                              flex: "1 1 220px",
+                              minWidth: 0,
+                            }}
+                          >
                             <div
+                              aria-hidden
                               style={{
-                                fontSize: "15px",
-                                fontWeight: 700,
-                                color: "var(--text-h)",
-                                marginBottom: "4px",
+                                width: 10,
+                                height: 10,
+                                marginTop: "5px",
+                                borderRadius: "999px",
+                                flexShrink: 0,
+                                background: demoTableBrowserStatusDotColor(
+                                  tbl.status
+                                ),
                               }}
-                            >
-                              {tbl.label}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "13px",
-                                color: "var(--text)",
-                                lineHeight: 1.45,
-                              }}
-                            >
-                              {tbl.columns} columns ·{" "}
-                              {tbl.rowCount.toLocaleString()} rows
+                            />
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div
+                                style={{
+                                  fontSize: "15px",
+                                  fontWeight: 700,
+                                  color: "var(--text-h)",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                {tbl.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: "var(--text)",
+                                  opacity: 0.85,
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                {tbl.schema}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "13px",
+                                  color: "var(--text)",
+                                  lineHeight: 1.45,
+                                  opacity: 0.9,
+                                }}
+                              >
+                                {tbl.columns} columns ·{" "}
+                                {Number(tbl.rows).toLocaleString()} rows
+                              </div>
+                              {tbl.aiNameSuggestion ? (
+                                <div style={{ marginTop: "8px" }}>
+                                  <button
+                                    type="button"
+                                    className="app-ghost-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTableBrowserAiNameTipId((cur) =>
+                                        cur === tbl.name ? null : tbl.name
+                                      );
+                                    }}
+                                    style={{
+                                      padding: "2px 8px",
+                                      margin: 0,
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      borderRadius: "6px",
+                                      border: "1px solid var(--accent-border)",
+                                      background: "var(--accent-bg)",
+                                      color: "var(--accent)",
+                                      cursor: "pointer",
+                                      fontFamily: "inherit",
+                                    }}
+                                  >
+                                    💡 {tbl.aiNameSuggestion}
+                                  </button>
+                                  {tableBrowserAiNameTipId === tbl.name ? (
+                                    <p
+                                      style={{
+                                        margin: "6px 0 0",
+                                        fontSize: "12px",
+                                        lineHeight: 1.45,
+                                        color: "var(--text)",
+                                        maxWidth: "28rem",
+                                      }}
+                                    >
+                                      {`AI suggests renaming to '${tbl.aiNameSuggestion}' based on the table's content and structure.`}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                           <div
@@ -6185,6 +6818,7 @@ function App() {
                               alignItems: "flex-end",
                               gap: "8px",
                               flexShrink: 0,
+                              maxWidth: "100%",
                             }}
                           >
                             <span
@@ -6192,39 +6826,60 @@ function App() {
                                 fontSize: "12px",
                                 color: "var(--text)",
                                 whiteSpace: "nowrap",
+                                opacity: 0.9,
                               }}
                             >
-                              Last synced: {tbl.synced}
+                              {tbl.lastSync}
                             </span>
-                            {tbl.changesDetected ? (
-                              <span
-                                style={{
-                                  fontSize: "11px",
-                                  fontWeight: 700,
-                                  padding: "3px 8px",
-                                  borderRadius: "6px",
-                                  background: "var(--risk-high-bg)",
-                                  color: "var(--risk-high)",
-                                  border: "1px solid var(--risk-high-border)",
-                                }}
-                              >
-                                ⚠️ Changes detected
-                              </span>
-                            ) : (
-                              <span
-                                style={{
-                                  fontSize: "11px",
-                                  fontWeight: 700,
-                                  padding: "3px 8px",
-                                  borderRadius: "6px",
-                                  border: "1px solid var(--border)",
-                                  background: "var(--bg)",
-                                  color: "var(--text-h)",
-                                }}
-                              >
-                                ✅ No changes
-                              </span>
-                            )}
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                justifyContent: "flex-end",
+                                gap: "6px",
+                              }}
+                            >
+                              {tbl.riskLevel === "high" ||
+                              tbl.riskLevel === "medium" ? (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    padding: "3px 8px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--border)",
+                                    background:
+                                      tbl.riskLevel === "high"
+                                        ? "var(--risk-high-bg)"
+                                        : "var(--code-bg)",
+                                    color:
+                                      tbl.riskLevel === "high"
+                                        ? "var(--risk-high)"
+                                        : "var(--text-h)",
+                                  }}
+                                >
+                                  {tbl.riskLevel === "high"
+                                    ? "High risk"
+                                    : "Medium risk"}
+                                </span>
+                              ) : null}
+                              {tbl.changeCount > 0 ? (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    padding: "3px 8px",
+                                    borderRadius: "6px",
+                                    background: "var(--risk-high-bg)",
+                                    color: "var(--risk-high)",
+                                    border:
+                                      "1px solid var(--risk-high-border)",
+                                  }}
+                                >
+                                  ⚠️ {tbl.changeCount} changes
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
                         </button>
                       );
@@ -6372,7 +7027,7 @@ function App() {
               >
                 <p
                   style={{
-                    margin: "0 0 14px",
+                    margin: "0 0 10px",
                     fontSize: "15px",
                     fontWeight: 600,
                     color: "var(--text-h)",
@@ -6402,34 +7057,335 @@ function App() {
                 <div
                   style={{
                     fontSize: "13px",
-                    lineHeight: 1.55,
+                    color: "var(--text)",
+                    marginBottom: "12px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                    Databricks demo
+                  </span>
+                  <span style={{ margin: "0 6px", color: "var(--border)" }}>
+                    ›
+                  </span>
+                  <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                    main
+                  </span>
+                  <span style={{ margin: "0 6px", color: "var(--border)" }}>
+                    ›
+                  </span>
+                  <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                    analytics
+                  </span>
+                </div>
+
+                <input
+                  type="search"
+                  value={tableSearchQuery}
+                  onChange={(e) => setTableSearchQuery(e.target.value)}
+                  placeholder="Search tables..."
+                  aria-label="Search tables"
+                  className="unlockdb-field"
+                  style={{
+                    width: "100%",
+                    maxWidth: "28rem",
+                    boxSizing: "border-box",
+                    padding: "10px 12px",
+                    marginBottom: "10px",
+                    borderRadius: "8px",
+                    fontSize: "14px",
+                  }}
+                />
+
+                <p
+                  style={{
+                    margin: "0 0 14px",
+                    fontSize: "13px",
                     color: "var(--text)",
                   }}
                 >
-                  <div>
-                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                      Source:{" "}
-                    </span>
-                    Databricks demo
+                  {tableBrowserSummary.total} tables ·{" "}
+                  {tableBrowserSummary.withChanges} with changes ·{" "}
+                  {tableBrowserSummary.highRisk} high risk
+                </p>
+
+                {tableBrowserPendingStub &&
+                tableBrowserSource === "databricks" ? (
+                  <div
+                    style={{
+                      marginBottom: "14px",
+                      padding: "12px 14px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
+                      background: "var(--social-bg)",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: "0 0 10px",
+                        fontSize: "14px",
+                        lineHeight: 1.5,
+                        color: "var(--text)",
+                      }}
+                    >
+                      No baseline snapshot yet
+                    </p>
+                    <button
+                      type="button"
+                      className="app-ghost-btn"
+                      onClick={() => handleDemoTableBrowserSampleLoad()}
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--bg)",
+                        color: "var(--accent)",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Load sample comparison →
+                    </button>
                   </div>
-                  <div>
-                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                      Catalog:{" "}
-                    </span>
-                    main
-                  </div>
-                  <div>
-                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                      Schema:{" "}
-                    </span>
-                    analytics
-                  </div>
-                  <div>
-                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                      Table:{" "}
-                    </span>
-                    events
-                  </div>
+                ) : null}
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  {tableBrowserFiltered.length === 0 ? (
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "14px",
+                        color: "var(--text)",
+                      }}
+                    >
+                      No tables match your search.
+                    </p>
+                  ) : (
+                    tableBrowserFiltered.map((tbl) => {
+                      const rowKey = `databricks:${tbl.name}`;
+                      const isActive =
+                        databricksWarehouseTableDisplay === tbl.name;
+                      const isHover =
+                        tableBrowserRowHoverKey === rowKey && !isActive;
+                      return (
+                        <button
+                          key={tbl.name}
+                          type="button"
+                          onMouseEnter={() =>
+                            setTableBrowserRowHoverKey(rowKey)
+                          }
+                          onMouseLeave={() =>
+                            setTableBrowserRowHoverKey(null)
+                          }
+                          onClick={() => handleDemoTableBrowserRowClick(tbl)}
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                            width: "100%",
+                            boxSizing: "border-box",
+                            textAlign: "left",
+                            padding: "14px 16px",
+                            borderRadius: "10px",
+                            border: `1px solid ${
+                              isActive
+                                ? "var(--accent-border)"
+                                : "var(--border)"
+                            }`,
+                            borderLeftWidth: isActive ? 4 : 1,
+                            borderLeftColor: isActive
+                              ? "var(--accent)"
+                              : "var(--border)",
+                            background: isHover
+                              ? "var(--bg)"
+                              : "var(--social-bg)",
+                            boxShadow: "none",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            transition:
+                              "background 0.15s ease, border-color 0.15s ease",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "12px",
+                              flex: "1 1 220px",
+                              minWidth: 0,
+                            }}
+                          >
+                            <div
+                              aria-hidden
+                              style={{
+                                width: 10,
+                                height: 10,
+                                marginTop: "5px",
+                                borderRadius: "999px",
+                                flexShrink: 0,
+                                background: demoTableBrowserStatusDotColor(
+                                  tbl.status
+                                ),
+                              }}
+                            />
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div
+                                style={{
+                                  fontSize: "15px",
+                                  fontWeight: 700,
+                                  color: "var(--text-h)",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                {tbl.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: "var(--text)",
+                                  opacity: 0.85,
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                {tbl.schema}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "13px",
+                                  color: "var(--text)",
+                                  lineHeight: 1.45,
+                                  opacity: 0.9,
+                                }}
+                              >
+                                {tbl.columns} columns ·{" "}
+                                {Number(tbl.rows).toLocaleString()} rows
+                              </div>
+                              {tbl.aiNameSuggestion ? (
+                                <div style={{ marginTop: "8px" }}>
+                                  <button
+                                    type="button"
+                                    className="app-ghost-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTableBrowserAiNameTipId((cur) =>
+                                        cur === tbl.name ? null : tbl.name
+                                      );
+                                    }}
+                                    style={{
+                                      padding: "2px 8px",
+                                      margin: 0,
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                      borderRadius: "6px",
+                                      border: "1px solid var(--accent-border)",
+                                      background: "var(--accent-bg)",
+                                      color: "var(--accent)",
+                                      cursor: "pointer",
+                                      fontFamily: "inherit",
+                                    }}
+                                  >
+                                    💡 {tbl.aiNameSuggestion}
+                                  </button>
+                                  {tableBrowserAiNameTipId === tbl.name ? (
+                                    <p
+                                      style={{
+                                        margin: "6px 0 0",
+                                        fontSize: "12px",
+                                        lineHeight: 1.45,
+                                        color: "var(--text)",
+                                        maxWidth: "28rem",
+                                      }}
+                                    >
+                                      {`AI suggests renaming to '${tbl.aiNameSuggestion}' based on the table's content and structure.`}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-end",
+                              gap: "8px",
+                              flexShrink: 0,
+                              maxWidth: "100%",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                color: "var(--text)",
+                                whiteSpace: "nowrap",
+                                opacity: 0.9,
+                              }}
+                            >
+                              {tbl.lastSync}
+                            </span>
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                justifyContent: "flex-end",
+                                gap: "6px",
+                              }}
+                            >
+                              {tbl.riskLevel === "high" ||
+                              tbl.riskLevel === "medium" ? (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    padding: "3px 8px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--border)",
+                                    background:
+                                      tbl.riskLevel === "high"
+                                        ? "var(--risk-high-bg)"
+                                        : "var(--code-bg)",
+                                    color:
+                                      tbl.riskLevel === "high"
+                                        ? "var(--risk-high)"
+                                        : "var(--text-h)",
+                                  }}
+                                >
+                                  {tbl.riskLevel === "high"
+                                    ? "High risk"
+                                    : "Medium risk"}
+                                </span>
+                              ) : null}
+                              {tbl.changeCount > 0 ? (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: 700,
+                                    padding: "3px 8px",
+                                    borderRadius: "6px",
+                                    background: "var(--risk-high-bg)",
+                                    color: "var(--risk-high)",
+                                    border:
+                                      "1px solid var(--risk-high-border)",
+                                  }}
+                                >
+                                  ⚠️ {tbl.changeCount} changes
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             ) : null}

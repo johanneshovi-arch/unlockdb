@@ -45,6 +45,11 @@ If asked about something outside the data context,
 say: 'I can only answer questions about the 
 current dataset and its changes.'
 
+If asked about table naming, you can suggest 
+better names based on the table's content, 
+schema location, and naming conventions. 
+Prefer lowercase_with_underscores format.
+
 Never make up data that isn't in the context.`;
 
 const EXPLAIN_SYSTEM_PROMPT = `You are a data change analyst for Unlockdb. 
@@ -71,7 +76,7 @@ export async function askClaude(prompt, context, options = {}) {
 
   const contextBlock =
     mode === "chat"
-      ? String(context ?? "").slice(0, 4000)
+      ? String(context ?? "").slice(0, 6000)
       : JSON.stringify(context ?? {}, null, 2);
 
   const userContent =
