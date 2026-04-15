@@ -391,6 +391,49 @@ const DATA_SOURCE_OPTIONS = [
   { id: "csv", label: "CSV (demo)" },
 ];
 
+const SNOWFLAKE_DEMO_BROWSER_TABLES = [
+  {
+    id: "customers",
+    label: "customers",
+    columns: 5,
+    rowCount: 1247,
+    synced: "2 min ago",
+    changesDetected: true,
+  },
+  {
+    id: "orders",
+    label: "orders",
+    columns: 8,
+    rowCount: 84392,
+    synced: "2 min ago",
+    changesDetected: false,
+  },
+  {
+    id: "events",
+    label: "events",
+    columns: 5,
+    rowCount: 412891,
+    synced: "5 min ago",
+    changesDetected: true,
+  },
+  {
+    id: "sessions",
+    label: "sessions",
+    columns: 6,
+    rowCount: 98234,
+    synced: "12 min ago",
+    changesDetected: false,
+  },
+  {
+    id: "revenue_daily",
+    label: "revenue_daily",
+    columns: 4,
+    rowCount: 365,
+    synced: "1 hour ago",
+    changesDetected: false,
+  },
+];
+
 function formatStatChangeBullet(statChange) {
   return statChange.changeText;
 }
@@ -889,8 +932,8 @@ function tryHandleCopilotCommand(text, deps) {
   ) {
     if (selectedSource !== "snowflake") selectDataSource("snowflake");
     runSnowflakeDemoDataset();
-    setActiveTab("overview");
-    return "Started Snowflake demo: loading analytics.public.customers baseline vs current.";
+    setActiveTab("sources");
+    return "Snowflake demo connected. Pick a table under analytics.public in Sources (e.g. customers).";
   }
 
   if (/\bconnect snowflake\b/.test(q)) {
@@ -1718,6 +1761,14 @@ function App() {
   });
   const [snowflakeDemoConnected, setSnowflakeDemoConnected] = useState(false);
   const [snowflakeConnecting, setSnowflakeConnecting] = useState(false);
+  const [snowflakeWarehouseDataLoaded, setSnowflakeWarehouseDataLoaded] =
+    useState(false);
+  const [snowflakeWarehouseTableDisplay, setSnowflakeWarehouseTableDisplay] =
+    useState(null);
+  const [snowflakeTableSearch, setSnowflakeTableSearch] = useState("");
+  const [snowflakeStubTableId, setSnowflakeStubTableId] = useState(null);
+  const [snowflakeTableRowHoverId, setSnowflakeTableRowHoverId] =
+    useState(null);
   const [databricksForm, setDatabricksForm] = useState({
     workspaceUrl: "",
     catalog: "",
@@ -1791,6 +1842,14 @@ function App() {
       buildAggregatedImpactLines(riskFindings, diffSummaryBullets, columns),
     [riskFindings, diffSummaryBullets, columns]
   );
+  const snowflakeBrowserTablesFiltered = useMemo(() => {
+    const q = snowflakeTableSearch.trim().toLowerCase();
+    if (!q) return SNOWFLAKE_DEMO_BROWSER_TABLES;
+    return SNOWFLAKE_DEMO_BROWSER_TABLES.filter(
+      (t) =>
+        t.label.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)
+    );
+  }, [snowflakeTableSearch]);
   const overviewHasData = currentData.length > 0 && columns.length > 0;
   const diffSummaryShort =
     (diffSummaryParagraph && diffSummaryParagraph.trim()) ||
@@ -2010,6 +2069,14 @@ function App() {
     reader.readAsText(file);
   }
 
+  function resetSnowflakeWarehouseBrowserState() {
+    setSnowflakeWarehouseDataLoaded(false);
+    setSnowflakeWarehouseTableDisplay(null);
+    setSnowflakeTableSearch("");
+    setSnowflakeStubTableId(null);
+    setSnowflakeTableRowHoverId(null);
+  }
+
   function handlePreviousCsvSelected(e) {
     const input = e.target;
     const file = input.files?.[0];
@@ -2017,6 +2084,7 @@ function App() {
     readCsvFile(file, (rows) => {
       setSnowflakeDemoConnected(false);
       setDatabricksDemoConnected(false);
+      resetSnowflakeWarehouseBrowserState();
       setPreviousData(rows);
       setPreviousFileName(file.name);
       input.value = "";
@@ -2030,6 +2098,7 @@ function App() {
     readCsvFile(file, (rows) => {
       setSnowflakeDemoConnected(false);
       setDatabricksDemoConnected(false);
+      resetSnowflakeWarehouseBrowserState();
       setCurrentData(rows);
       setCurrentFileName(file.name);
       input.value = "";
@@ -2039,6 +2108,11 @@ function App() {
   function handleUseSampleDataset() {
     setSnowflakeDemoConnected(false);
     setDatabricksDemoConnected(false);
+    setSnowflakeWarehouseDataLoaded(false);
+    setSnowflakeWarehouseTableDisplay(null);
+    setSnowflakeTableSearch("");
+    setSnowflakeStubTableId(null);
+    setSnowflakeTableRowHoverId(null);
     setPreviousData(SAMPLE_PREVIOUS_DATA);
     setCurrentData(SAMPLE_CURRENT_DATA);
     setPreviousFileName("sample-previous.csv");
@@ -2067,6 +2141,7 @@ function App() {
     });
     if (id !== "snowflake") {
       setSnowflakeDemoConnected(false);
+      resetSnowflakeWarehouseBrowserState();
     }
     if (id !== "databricks") {
       setDatabricksDemoConnected(false);
@@ -2085,16 +2160,51 @@ function App() {
       setSnowflakeConnecting(false);
       setSnowflakeDemoConnected(true);
       setDatabricksDemoConnected(false);
-      setPreviousData(SNOWFLAKE_DEMO_PREVIOUS);
-      setCurrentData(SNOWFLAKE_DEMO_CURRENT);
-      setPreviousFileName("Snowflake · customers (baseline)");
-      setCurrentFileName("Snowflake · customers (current)");
+      resetSnowflakeWarehouseBrowserState();
+      setPreviousData([]);
+      setCurrentData([]);
+      setPreviousFileName("Snowflake · select a table");
+      setCurrentFileName("Snowflake · select a table");
     }, 1000);
   }
 
   function handleSnowflakeDemoConnect(e) {
     e.preventDefault();
     runSnowflakeDemoDataset();
+    setActiveTab("sources");
+  }
+
+  function loadSnowflakeWarehouseCustomers() {
+    setSnowflakeStubTableId(null);
+    setSnowflakeWarehouseDataLoaded(true);
+    setSnowflakeWarehouseTableDisplay("customers");
+    setPreviousData(SNOWFLAKE_DEMO_PREVIOUS);
+    setCurrentData(SNOWFLAKE_DEMO_CURRENT);
+    setPreviousFileName("Snowflake · customers (baseline)");
+    setCurrentFileName("Snowflake · customers (current)");
+    setActiveTab("overview");
+  }
+
+  function loadSnowflakeWarehouseEvents() {
+    setSnowflakeStubTableId(null);
+    setSnowflakeWarehouseDataLoaded(true);
+    setSnowflakeWarehouseTableDisplay("events");
+    setPreviousData(DATABRICKS_DEMO_PREVIOUS);
+    setCurrentData(DATABRICKS_DEMO_CURRENT);
+    setPreviousFileName("Snowflake · events (baseline)");
+    setCurrentFileName("Snowflake · events (current)");
+    setActiveTab("overview");
+  }
+
+  function loadSnowflakeWarehouseCleanCustomersNoDiff() {
+    setSnowflakeStubTableId(null);
+    const snapshot = SNOWFLAKE_DEMO_CURRENT.map((row) => ({ ...row }));
+    setSnowflakeWarehouseDataLoaded(true);
+    setSnowflakeWarehouseTableDisplay("customers");
+    setPreviousData(snapshot.map((row) => ({ ...row })));
+    setCurrentData(snapshot.map((row) => ({ ...row })));
+    setPreviousFileName("Snowflake · customers (baseline)");
+    setCurrentFileName("Snowflake · customers (current)");
     setActiveTab("overview");
   }
 
@@ -2105,6 +2215,7 @@ function App() {
       setDatabricksConnecting(false);
       setDatabricksDemoConnected(true);
       setSnowflakeDemoConnected(false);
+      resetSnowflakeWarehouseBrowserState();
       setPreviousData(DATABRICKS_DEMO_PREVIOUS);
       setCurrentData(DATABRICKS_DEMO_CURRENT);
       setPreviousFileName("Databricks · events (baseline)");
@@ -2475,7 +2586,7 @@ function App() {
               )
             ) : (
               <>
-                {snowflakeDemoConnected ? (
+                {snowflakeDemoConnected && snowflakeWarehouseDataLoaded ? (
                   <div
                     style={{
                       maxWidth: "44rem",
@@ -2499,7 +2610,7 @@ function App() {
                         ·
                       </span>
                       <span style={{ color: "var(--text)" }}>Table: </span>
-                      customers
+                      {snowflakeWarehouseTableDisplay ?? "—"}
                     </div>
                     <div
                       style={{
@@ -2528,7 +2639,7 @@ function App() {
                         <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
                           Table:{" "}
                         </span>
-                        customers
+                        {snowflakeWarehouseTableDisplay ?? "—"}
                       </div>
                     </div>
                   </div>
@@ -5020,7 +5131,7 @@ function App() {
               >
                 <p
                   style={{
-                    margin: "0 0 14px",
+                    margin: "0 0 10px",
                     fontSize: "15px",
                     fontWeight: 600,
                     color: "var(--text-h)",
@@ -5050,34 +5161,242 @@ function App() {
                 <div
                   style={{
                     fontSize: "13px",
-                    lineHeight: 1.55,
                     color: "var(--text)",
+                    marginBottom: "16px",
+                    lineHeight: 1.5,
                   }}
                 >
-                  <div>
-                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                      Source:{" "}
-                    </span>
+                  <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
                     Snowflake demo
-                  </div>
-                  <div>
-                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                      Database:{" "}
-                    </span>
+                  </span>
+                  <span style={{ margin: "0 6px", color: "var(--border)" }}>
+                    ›
+                  </span>
+                  <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
                     analytics
-                  </div>
-                  <div>
-                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                      Schema:{" "}
-                    </span>
+                  </span>
+                  <span style={{ margin: "0 6px", color: "var(--border)" }}>
+                    ›
+                  </span>
+                  <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
                     public
+                  </span>
+                </div>
+
+                <h2
+                  style={{
+                    margin: "0 0 12px",
+                    fontSize: "18px",
+                    fontWeight: 700,
+                    color: "var(--text-h)",
+                  }}
+                >
+                  analytics.public
+                </h2>
+
+                <input
+                  type="search"
+                  value={snowflakeTableSearch}
+                  onChange={(e) => setSnowflakeTableSearch(e.target.value)}
+                  placeholder="Search tables..."
+                  aria-label="Search tables"
+                  style={{
+                    width: "100%",
+                    maxWidth: "28rem",
+                    boxSizing: "border-box",
+                    padding: "10px 12px",
+                    marginBottom: "14px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    fontSize: "14px",
+                    fontFamily: "inherit",
+                    background: "var(--bg)",
+                    color: "var(--text-h)",
+                  }}
+                />
+
+                {snowflakeStubTableId ? (
+                  <div
+                    style={{
+                      marginBottom: "14px",
+                      padding: "12px 14px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
+                      background: "var(--social-bg)",
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: "0 0 10px",
+                        fontSize: "14px",
+                        lineHeight: 1.5,
+                        color: "var(--text)",
+                      }}
+                    >
+                      No changes detected in this table since last snapshot.
+                    </p>
+                    <button
+                      type="button"
+                      className="app-ghost-btn"
+                      onClick={() => loadSnowflakeWarehouseCleanCustomersNoDiff()}
+                      style={{
+                        padding: "8px 14px",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--bg)",
+                        color: "var(--accent)",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      View table anyway →
+                    </button>
                   </div>
-                  <div>
-                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                      Table:{" "}
-                    </span>
-                    customers
-                  </div>
+                ) : null}
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  {snowflakeBrowserTablesFiltered.length === 0 ? (
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "14px",
+                        color: "var(--text)",
+                      }}
+                    >
+                      No tables match your search.
+                    </p>
+                  ) : (
+                    snowflakeBrowserTablesFiltered.map((tbl) => {
+                      const isActive =
+                        snowflakeWarehouseDataLoaded &&
+                        snowflakeWarehouseTableDisplay === tbl.label;
+                      const isHover =
+                        snowflakeTableRowHoverId === tbl.id && !isActive;
+                      return (
+                        <button
+                          key={tbl.id}
+                          type="button"
+                          onMouseEnter={() => setSnowflakeTableRowHoverId(tbl.id)}
+                          onMouseLeave={() => setSnowflakeTableRowHoverId(null)}
+                          onClick={() => {
+                            if (tbl.id === "customers") {
+                              loadSnowflakeWarehouseCustomers();
+                            } else if (tbl.id === "events") {
+                              loadSnowflakeWarehouseEvents();
+                            } else {
+                              setSnowflakeStubTableId(tbl.id);
+                            }
+                          }}
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            width: "100%",
+                            boxSizing: "border-box",
+                            textAlign: "left",
+                            padding: "14px 16px",
+                            borderRadius: "10px",
+                            border: `1px solid ${
+                              isActive ? "var(--accent-border)" : "var(--border)"
+                            }`,
+                            borderLeftWidth: isActive ? 4 : 1,
+                            borderLeftColor: isActive
+                              ? "var(--accent)"
+                              : "var(--border)",
+                            background: isHover
+                              ? "var(--bg)"
+                              : "var(--social-bg)",
+                            boxShadow: "var(--shadow)",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            transition:
+                              "background 0.15s ease, border-color 0.15s ease",
+                          }}
+                        >
+                          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: "15px",
+                                fontWeight: 700,
+                                color: "var(--text-h)",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              {tbl.label}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "var(--text)",
+                                lineHeight: 1.45,
+                              }}
+                            >
+                              {tbl.columns} columns ·{" "}
+                              {tbl.rowCount.toLocaleString()} rows
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-end",
+                              gap: "8px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                color: "var(--text)",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Last synced: {tbl.synced}
+                            </span>
+                            {tbl.changesDetected ? (
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  background: "var(--risk-high-bg)",
+                                  color: "var(--risk-high)",
+                                  border: "1px solid var(--risk-high-border)",
+                                }}
+                              >
+                                ⚠️ Changes detected
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  border: "1px solid var(--border)",
+                                  background: "var(--bg)",
+                                  color: "var(--text-h)",
+                                }}
+                              >
+                                ✅ No changes
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             ) : null}
