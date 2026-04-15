@@ -481,6 +481,146 @@ function inferExplainChangeKind(statChange) {
   return "generic";
 }
 
+const SETTINGS_ALERT_DEMO_TABLE_IDS = [
+  "customers",
+  "orders",
+  "events",
+  "sessions",
+  "revenue_daily",
+];
+
+const DEFAULT_SETTINGS_TABLE_SENSITIVITY = {
+  customers: "high",
+  orders: "high",
+  events: "low",
+  sessions: "normal",
+  revenue_daily: "normal",
+};
+
+function parseNullPercentPointIncreaseFromChangeText(changeText) {
+  const m = String(changeText ?? "").match(
+    /(\d+(?:\.\d+)?)%\s*→\s*(\d+(?:\.\d+)?)%/
+  );
+  if (!m) return null;
+  const a = Number.parseFloat(m[1]);
+  const b = Number.parseFloat(m[2]);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.max(0, b - a);
+}
+
+function resolveActiveDemoTableIdForAlertSettings(
+  selectedSource,
+  databricksDemoConnected,
+  snowflakeWarehouseTableDisplay
+) {
+  if (selectedSource === "databricks" && databricksDemoConnected) {
+    return "events";
+  }
+  if (selectedSource === "snowflake" && snowflakeWarehouseTableDisplay) {
+    const raw = String(snowflakeWarehouseTableDisplay).trim().toLowerCase();
+    const norm = raw.replace(/\s+/g, "_");
+    if (SETTINGS_ALERT_DEMO_TABLE_IDS.includes(norm)) return norm;
+  }
+  return "customers";
+}
+
+function adjustStatChangeForUserAlertSettings(sc, options) {
+  const { nullThresholdPts, sensitivityMode } = options;
+  if (
+    sensitivityMode === "muted" &&
+    (sc.tier === "HIGH" || sc.tier === "MEDIUM")
+  ) {
+    return null;
+  }
+  const mult =
+    sensitivityMode === "high"
+      ? 0.75
+      : sensitivityMode === "low"
+        ? 1.25
+        : 1;
+  const effectiveNullTh = nullThresholdPts * mult;
+  const kind = inferExplainChangeKind(sc);
+  const isNullIncreaseHigh =
+    sc.tier === "HIGH" &&
+    (kind === "null_increase" || sc.drillKind === "null_increase");
+  if (!isNullIncreaseHigh) {
+    return sc;
+  }
+  const inc = parseNullPercentPointIncreaseFromChangeText(sc.changeText);
+  if (inc === null) {
+    return sc;
+  }
+  if (inc <= effectiveNullTh) {
+    return { ...sc, tier: "INFO", label: "INFO" };
+  }
+  return sc;
+}
+
+function settingsAlertSensitivityBadgeStyle(mode) {
+  switch (mode) {
+    case "high":
+      return {
+        label: "Sensitive",
+        background: "var(--risk-high-bg)",
+        color: "var(--risk-high)",
+        border: "1px solid var(--risk-high-border)",
+      };
+    case "low":
+      return {
+        label: "Relaxed",
+        background: "var(--accent-bg)",
+        color: "var(--accent)",
+        border: "1px solid var(--accent-border)",
+      };
+    case "muted":
+      return {
+        label: "Muted",
+        background: "var(--code-bg)",
+        color: "var(--text)",
+        border: "1px solid var(--border)",
+      };
+    default:
+      return {
+        label: "Default",
+        background: "var(--code-bg)",
+        color: "var(--text-h)",
+        border: "1px solid var(--border)",
+      };
+  }
+}
+
+const settingsPageSelectStyle = {
+  padding: "8px 10px",
+  borderRadius: "8px",
+  border: "1px solid var(--border)",
+  fontSize: "14px",
+  fontFamily: "inherit",
+  background: "var(--bg)",
+  color: "var(--text-h)",
+  minWidth: "200px",
+};
+
+const settingsPageSectionCardStyle = {
+  padding: "16px 18px",
+  borderRadius: "12px",
+  border: "1px solid var(--border)",
+  background: "var(--social-bg)",
+  boxShadow: "var(--shadow)",
+  marginBottom: "18px",
+};
+
+const settingsPageNumberInputStyle = {
+  maxWidth: "120px",
+  padding: "8px 10px",
+  borderRadius: "8px",
+  border: "1px solid var(--border)",
+  fontSize: "14px",
+  fontFamily: "inherit",
+  background: "var(--bg)",
+  color: "var(--text-h)",
+  boxSizing: "border-box",
+};
+
 function columnDomainHint(columnKey) {
   const k = String(columnKey ?? "").toLowerCase();
   if (k.includes("email")) return "email";
@@ -1800,6 +1940,23 @@ function App() {
   const [columnDetailKey, setColumnDetailKey] = useState(null);
   const [explainStatChange, setExplainStatChange] = useState(null);
   const [feedCardHoverId, setFeedCardHoverId] = useState(null);
+  const [nullRateIncreaseThreshold, setNullRateIncreaseThreshold] =
+    useState(5);
+  const [distinctValueChangeThreshold, setDistinctValueChangeThreshold] =
+    useState(10);
+  const [rowCountChangeThreshold, setRowCountChangeThreshold] = useState(20);
+  const [settingsTableSensitivity, setSettingsTableSensitivity] = useState(
+    () => ({ ...DEFAULT_SETTINGS_TABLE_SENSITIVITY })
+  );
+  const [acknowledgedChangeIds, setAcknowledgedChangeIds] = useState([]);
+  const [acknowledgedChangeEntries, setAcknowledgedChangeEntries] = useState(
+    []
+  );
+  const [settingsSavedMessageVisible, setSettingsSavedMessageVisible] =
+    useState(false);
+  const [markKnownMessage, setMarkKnownMessage] = useState(null);
+  const settingsSaveMessageTimerRef = useRef(null);
+  const markKnownMessageTimerRef = useRef(null);
 
   const columns = useMemo(
     () => buildColumnsFromCurrentOnly(currentData),
@@ -1831,12 +1988,37 @@ function App() {
     () => buildStatChanges(riskFindings, diffSummaryBullets, columns),
     [riskFindings, diffSummaryBullets, columns]
   );
-  const filteredStatChanges = useMemo(() => {
-    if (changeFeedFilter === "high-risk") {
-      return statChanges.filter((s) => s.tier === "HIGH");
+  const activeAlertSettingsTableId = resolveActiveDemoTableIdForAlertSettings(
+    selectedSource,
+    databricksDemoConnected,
+    snowflakeWarehouseTableDisplay
+  );
+  const activeTableSensitivityForAlerts =
+    settingsTableSensitivity[activeAlertSettingsTableId] ?? "normal";
+  const statChangesAfterAckAndAlerts = useMemo(() => {
+    const ack = new Set(acknowledgedChangeIds);
+    const out = [];
+    for (const sc of statChanges) {
+      if (ack.has(sc.id)) continue;
+      const adj = adjustStatChangeForUserAlertSettings(sc, {
+        nullThresholdPts: nullRateIncreaseThreshold,
+        sensitivityMode: activeTableSensitivityForAlerts,
+      });
+      if (adj) out.push(adj);
     }
-    return statChanges;
-  }, [statChanges, changeFeedFilter]);
+    return out;
+  }, [
+    statChanges,
+    acknowledgedChangeIds,
+    nullRateIncreaseThreshold,
+    activeTableSensitivityForAlerts,
+  ]);
+  const displayStatChangesForFeed = useMemo(() => {
+    if (changeFeedFilter === "high-risk") {
+      return statChangesAfterAckAndAlerts.filter((s) => s.tier === "HIGH");
+    }
+    return statChangesAfterAckAndAlerts;
+  }, [statChangesAfterAckAndAlerts, changeFeedFilter]);
   const impactLines = useMemo(
     () =>
       buildAggregatedImpactLines(riskFindings, diffSummaryBullets, columns),
@@ -1993,6 +2175,8 @@ function App() {
     setExplainStatChange(null);
     setDismissed(false);
     setFeedCardHoverId(null);
+    setAcknowledgedChangeIds([]);
+    setAcknowledgedChangeEntries([]);
   }, [previousFileName, currentFileName, previousData.length, currentData.length]);
 
   useEffect(() => {
@@ -2019,6 +2203,17 @@ function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [explainStatChange]);
+
+  useEffect(() => {
+    return () => {
+      if (settingsSaveMessageTimerRef.current) {
+        window.clearTimeout(settingsSaveMessageTimerRef.current);
+      }
+      if (markKnownMessageTimerRef.current) {
+        window.clearTimeout(markKnownMessageTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (previousData.length === 0 || currentData.length === 0) {
@@ -2306,12 +2501,60 @@ function App() {
     setDemoLoggedIn(true);
   }
 
+  function handleSaveAlertSettings() {
+    if (settingsSaveMessageTimerRef.current) {
+      window.clearTimeout(settingsSaveMessageTimerRef.current);
+    }
+    setSettingsSavedMessageVisible(true);
+    settingsSaveMessageTimerRef.current = window.setTimeout(() => {
+      setSettingsSavedMessageVisible(false);
+      settingsSaveMessageTimerRef.current = null;
+    }, 2600);
+  }
+
+  function handleMarkChangeAsKnown(sc) {
+    setAcknowledgedChangeIds((prev) =>
+      prev.includes(sc.id) ? prev : [...prev, sc.id]
+    );
+    setAcknowledgedChangeEntries((prev) => {
+      if (prev.some((e) => e.id === sc.id)) return prev;
+      return [
+        ...prev,
+        {
+          id: sc.id,
+          changeText: sc.changeText,
+          at: new Date().toLocaleString(),
+        },
+      ];
+    });
+    if (selectedChange?.id === sc.id) {
+      setSelectedChange(null);
+    }
+    if (explainStatChange?.id === sc.id) {
+      setExplainStatChange(null);
+    }
+    if (markKnownMessageTimerRef.current) {
+      window.clearTimeout(markKnownMessageTimerRef.current);
+    }
+    setMarkKnownMessage("Marked as known. Won't alert on this again.");
+    markKnownMessageTimerRef.current = window.setTimeout(() => {
+      setMarkKnownMessage(null);
+      markKnownMessageTimerRef.current = null;
+    }, 3200);
+  }
+
+  function handleClearAllAcknowledgedChanges() {
+    setAcknowledgedChangeIds([]);
+    setAcknowledgedChangeEntries([]);
+  }
+
   const navTabs = [
     { id: "overview", label: "Overview" },
     { id: "about", label: "How it works" },
     { id: "sources", label: "Sources" },
     { id: "chat", label: "Copilot" },
     { id: "governance", label: "Governance" },
+    { id: "settings", label: "Settings" },
     { id: "audit", label: "Audit" },
     {
       id: "account",
@@ -2901,6 +3144,21 @@ function App() {
                   <strong>Explain</strong> for a plain-language walkthrough.
                   Filter from the command bar (e.g. high risk only).
                 </p>
+                {markKnownMessage ? (
+                  <p
+                    style={{
+                      maxWidth: "44rem",
+                      margin: "0 auto 12px",
+                      fontSize: "13px",
+                      lineHeight: 1.45,
+                      color: "var(--accent)",
+                      fontWeight: 600,
+                      textAlign: "left",
+                    }}
+                  >
+                    {markKnownMessage}
+                  </p>
+                ) : null}
 
                 <div
                   style={{
@@ -2925,7 +3183,8 @@ function App() {
                       {diffSummaryParagraph.trim() ||
                         "No change rows yet — add a baseline in Sources."}
                     </div>
-                  ) : filteredStatChanges.length === 0 ? (
+                  ) : displayStatChangesForFeed.length === 0 &&
+                    changeFeedFilter === "high-risk" ? (
                     <div
                       style={{
                         ...insightCardStyle,
@@ -2939,8 +3198,24 @@ function App() {
                       No HIGH risk changes match this filter. Try{" "}
                       <strong>show all changes</strong> in the copilot bar.
                     </div>
+                  ) : displayStatChangesForFeed.length === 0 ? (
+                    <div
+                      style={{
+                        ...insightCardStyle,
+                        margin: 0,
+                        fontSize: "15px",
+                        color: "var(--text)",
+                        padding: "18px 20px",
+                        boxShadow: "var(--shadow)",
+                      }}
+                    >
+                      No changes to show here — they may be acknowledged (see
+                      Settings), muted for this table&apos;s sensitivity, or
+                      downgraded after applying your thresholds. Try{" "}
+                      <strong>show all changes</strong> if a filter is active.
+                    </div>
                   ) : (
-                    filteredStatChanges.map((sc) => {
+                    displayStatChangesForFeed.map((sc) => {
                       const tag =
                         sc.label === "HIGH RISK"
                           ? "[HIGH RISK]"
@@ -3084,12 +3359,65 @@ function App() {
                             >
                               ✨ Explain
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMarkChangeAsKnown(sc)}
+                              className="app-ghost-btn"
+                              style={{
+                                padding: "8px 14px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                background: "var(--social-bg)",
+                                color: "var(--text-h)",
+                                fontWeight: 600,
+                                fontSize: "13px",
+                                fontFamily: "inherit",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Mark as known
+                            </button>
                           </div>
                         </div>
                       );
                     })
                   )}
                 </div>
+                {statChanges.length > 0 ? (
+                  <p
+                    style={{
+                      maxWidth: "44rem",
+                      margin: "-12px auto 28px",
+                      fontSize: "12px",
+                      lineHeight: 1.45,
+                      color: "var(--text)",
+                      textAlign: "left",
+                    }}
+                  >
+                    Showing changes above your configured thresholds. Adjust in{" "}
+                    <button
+                      type="button"
+                      className="app-ghost-btn"
+                      onClick={() => setActiveTab("settings")}
+                      style={{
+                        padding: 0,
+                        margin: 0,
+                        border: "none",
+                        background: "transparent",
+                        color: "var(--accent)",
+                        fontWeight: 600,
+                        fontSize: "inherit",
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        verticalAlign: "baseline",
+                      }}
+                    >
+                      Settings
+                    </button>
+                    .
+                  </p>
+                ) : null}
 
                 {explainStatChange && aiExplainPayload ? (
                   <>
@@ -5781,6 +6109,443 @@ function App() {
                   </ul>
                 </div>
               ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "settings" && (
+          <section style={{ ...governanceSectionStyle, marginBottom: 0 }}>
+            <h2 style={governanceH2Style}>Alert &amp; monitoring settings</h2>
+            <p style={governanceMutedStyle}>
+              Configure when Unlockdb flags changes as risks. Reducing noise
+              helps you focus on what actually matters.
+            </p>
+
+            <div style={settingsPageSectionCardStyle}>
+              <h3 style={{ ...governanceH3Style, marginTop: 0 }}>
+                Global thresholds
+              </h3>
+              <p
+                style={{
+                  ...governanceMutedStyle,
+                  marginTop: "-8px",
+                  marginBottom: "16px",
+                }}
+              >
+                Changes below these thresholds are ignored.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "18px",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    fontSize: "14px",
+                    color: "var(--text-h)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Flag as HIGH RISK when null % increases by more than:
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={nullRateIncreaseThreshold}
+                      onChange={(e) => {
+                        const v = Number.parseFloat(e.target.value);
+                        setNullRateIncreaseThreshold(
+                          Number.isFinite(v)
+                            ? Math.min(100, Math.max(0, v))
+                            : 0
+                        );
+                      }}
+                      style={settingsPageNumberInputStyle}
+                      aria-label="Null rate increase threshold percent"
+                    />
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                      }}
+                    >
+                      %
+                    </span>
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--text)",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Example: if email nulls go from 2% to 8%, that&apos;s a 6%
+                    increase — flagged.
+                  </span>
+                </label>
+
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    fontSize: "14px",
+                    color: "var(--text-h)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Flag as MEDIUM when distinct count changes by more than:
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={distinctValueChangeThreshold}
+                      onChange={(e) => {
+                        const v = Number.parseFloat(e.target.value);
+                        setDistinctValueChangeThreshold(
+                          Number.isFinite(v)
+                            ? Math.min(100, Math.max(0, v))
+                            : 0
+                        );
+                      }}
+                      style={settingsPageNumberInputStyle}
+                      aria-label="Distinct value change threshold percent"
+                    />
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                      }}
+                    >
+                      %
+                    </span>
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--text)",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Catches new categories or dropped values.
+                  </span>
+                </label>
+
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    fontSize: "14px",
+                    color: "var(--text-h)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Flag when total row count changes by more than:
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={rowCountChangeThreshold}
+                      onChange={(e) => {
+                        const v = Number.parseFloat(e.target.value);
+                        setRowCountChangeThreshold(
+                          Number.isFinite(v)
+                            ? Math.min(100, Math.max(0, v))
+                            : 0
+                        );
+                      }}
+                      style={settingsPageNumberInputStyle}
+                      aria-label="Row count change threshold percent"
+                    />
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                      }}
+                    >
+                      %
+                    </span>
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--text)",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Large row count drops can indicate data loss.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div style={settingsPageSectionCardStyle}>
+              <h3 style={{ ...governanceH3Style, marginTop: 0 }}>
+                Table-level sensitivity
+              </h3>
+              <p
+                style={{
+                  ...governanceMutedStyle,
+                  marginTop: "-8px",
+                  marginBottom: "14px",
+                }}
+              >
+                Override global settings for specific tables.
+              </p>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+              >
+                {SETTINGS_ALERT_DEMO_TABLE_IDS.map((tableId) => {
+                  const mode =
+                    settingsTableSensitivity[tableId] ?? "normal";
+                  const badge = settingsAlertSensitivityBadgeStyle(mode);
+                  return (
+                    <div
+                      key={tableId}
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: "12px 14px",
+                        padding: "12px 0",
+                        borderTop:
+                          tableId === SETTINGS_ALERT_DEMO_TABLE_IDS[0]
+                            ? "none"
+                            : "1px solid var(--border)",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          fontSize: "15px",
+                          color: "var(--text-h)",
+                          minWidth: "140px",
+                        }}
+                      >
+                        {tableId}
+                      </span>
+                      <label
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "4px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "var(--text-h)",
+                        }}
+                      >
+                        Sensitivity
+                        <select
+                          value={mode}
+                          onChange={(e) =>
+                            setSettingsTableSensitivity((prev) => ({
+                              ...prev,
+                              [tableId]: e.target.value,
+                            }))
+                          }
+                          style={settingsPageSelectStyle}
+                          aria-label={`Sensitivity for ${tableId}`}
+                        >
+                          <option value="high">
+                            High (alert on small changes)
+                          </option>
+                          <option value="normal">
+                            Normal (use global settings)
+                          </option>
+                          <option value="low">
+                            Low (only alert on large changes)
+                          </option>
+                          <option value="muted">Muted (no alerts)</option>
+                        </select>
+                      </label>
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          letterSpacing: "0.05em",
+                          textTransform: "uppercase",
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          background: badge.background,
+                          color: badge.color,
+                          border: badge.border,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {badge.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={settingsPageSectionCardStyle}>
+              <h3 style={{ ...governanceH3Style, marginTop: 0 }}>
+                Acknowledged changes
+              </h3>
+              <p
+                style={{
+                  ...governanceMutedStyle,
+                  marginTop: "-8px",
+                  marginBottom: "14px",
+                }}
+              >
+                Changes you have marked as known or expected.
+              </p>
+              {acknowledgedChangeEntries.length === 0 ? (
+                <p
+                  style={{
+                    margin: "0 0 16px",
+                    fontSize: "14px",
+                    lineHeight: 1.5,
+                    color: "var(--text)",
+                  }}
+                >
+                  No acknowledged changes yet. When you mark a change as
+                  &apos;known&apos;, it appears here and won&apos;t trigger
+                  alerts.
+                </p>
+              ) : (
+                <ul
+                  style={{
+                    listStyle: "none",
+                    padding: 0,
+                    margin: "0 0 16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  {acknowledgedChangeEntries.map((entry) => (
+                    <li
+                      key={entry.id}
+                      style={{
+                        fontSize: "13px",
+                        lineHeight: 1.45,
+                        color: "var(--text)",
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--code-bg)",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-h)",
+                          display: "block",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {entry.at}
+                      </span>
+                      {entry.changeText}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                className="app-ghost-btn"
+                disabled={acknowledgedChangeEntries.length === 0}
+                onClick={handleClearAllAcknowledgedChanges}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background:
+                    acknowledgedChangeEntries.length === 0
+                      ? "var(--code-bg)"
+                      : "var(--bg)",
+                  color:
+                    acknowledgedChangeEntries.length === 0
+                      ? "var(--text)"
+                      : "var(--text-h)",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  fontFamily: "inherit",
+                  cursor:
+                    acknowledgedChangeEntries.length === 0
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity: acknowledgedChangeEntries.length === 0 ? 0.55 : 1,
+                }}
+              >
+                Clear all acknowledged
+              </button>
+            </div>
+
+            <div style={{ marginTop: "8px", marginBottom: "32px" }}>
+              <button
+                type="button"
+                className="app-primary-btn"
+                onClick={handleSaveAlertSettings}
+                style={{
+                  padding: "10px 22px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--accent-border)",
+                  background: "var(--accent-bg)",
+                  color: "var(--accent)",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                Save settings
+              </button>
+              {settingsSavedMessageVisible ? (
+                <p
+                  style={{
+                    margin: "12px 0 0",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "var(--accent)",
+                  }}
+                >
+                  Settings saved.
+                </p>
+              ) : null}
             </div>
           </section>
         )}
