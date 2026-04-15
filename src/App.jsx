@@ -2496,6 +2496,7 @@ function App() {
   const currentCsvInputRef = useRef(null);
   const overviewDetailsRef = useRef(null);
   const chatMessageIdRef = useRef(0);
+  const copilotSubmitGuardRef = useRef(false);
   const [feedFocusColumnKey, setFeedFocusColumnKey] = useState(null);
   const [selectedChange, setSelectedChange] = useState(null);
   const [changeFeedFilter, setChangeFeedFilter] = useState("all");
@@ -3330,9 +3331,20 @@ function App() {
   }
 
   function handleCopilotSend(e) {
-    e.preventDefault();
-    sendChatMessage(copilotInput);
-    setCopilotInput("");
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
+    if (copilotSubmitGuardRef.current) return;
+    copilotSubmitGuardRef.current = true;
+    console.log("Copilot send triggered:", copilotInput);
+    try {
+      sendChatMessage(copilotInput);
+      setCopilotInput("");
+    } finally {
+      window.queueMicrotask(() => {
+        copilotSubmitGuardRef.current = false;
+      });
+    }
   }
 
   function openColumnExplorerDetail(columnKey) {
@@ -8609,6 +8621,7 @@ function App() {
 
           <form
             onSubmit={handleCopilotSend}
+            noValidate
             style={{
               display: "flex",
               gap: "8px",
@@ -8626,6 +8639,17 @@ function App() {
               spellCheck={false}
               value={copilotInput}
               onChange={(e) => setCopilotInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" || e.shiftKey) return;
+                if (e.nativeEvent?.isComposing) return;
+                e.preventDefault();
+                const form = e.currentTarget.form;
+                if (form && typeof form.requestSubmit === "function") {
+                  form.requestSubmit();
+                } else {
+                  handleCopilotSend(null);
+                }
+              }}
               placeholder="Command — e.g. compare customers today vs yesterday, high risk only, go to sources…"
               aria-label="Copilot command"
               className="unlockdb-field"
@@ -8691,7 +8715,7 @@ function App() {
           </div>
         </div>
         </footer>,
-        document.body
+        document.getElementById("root") ?? document.body
       )}
     </div>
   );
