@@ -665,44 +665,81 @@ function buildExplainClaudeContext(statChange, previousData, currentData, drillS
   };
 }
 
-function buildChatClaudeContext(ctx) {
-  return {
-    columns: ctx.columns.map((c) => ({ key: c.key, label: c.label })),
-    diffSummaryBullets: ctx.diffSummaryBullets,
-    diffSummaryParagraph: ctx.diffSummaryParagraph,
-    risks: ctx.riskFindings.map((r) => ({
-      severity: r.severity,
-      headline: r.headline,
-    })),
-    rowCounts: {
-      previous: ctx.previousData.length,
-      current: ctx.currentData.length,
-    },
-  };
+function buildCopilotSourceLabel(
+  selectedSource,
+  snowflakeDemoConnected,
+  databricksDemoConnected,
+  snowflakeWarehouseTableDisplay
+) {
+  if (selectedSource === "snowflake" && snowflakeDemoConnected) {
+    return `Snowflake · ${snowflakeWarehouseTableDisplay ?? "connected"}`;
+  }
+  if (selectedSource === "snowflake") return "Snowflake (not connected)";
+  if (selectedSource === "databricks" && databricksDemoConnected) {
+    return "Databricks · events";
+  }
+  if (selectedSource === "databricks") return "Databricks (not connected)";
+  if (selectedSource === "csv") return "CSV";
+  if (selectedSource === "fabric") return "Microsoft Fabric";
+  return "Not connected";
 }
 
-function formatClaudeChatAssistantText(result) {
-  if (result == null || typeof result === "string") return null;
-  if (typeof result === "object") {
-    const w = result.whatChanged ?? "";
-    const i = result.impact ?? "";
-    const l = result.likelyCause ?? "";
-    const s = result.suggestedAction ?? "";
-    return [
-      "What changed",
-      w,
-      "",
-      "Impact",
-      i,
-      "",
-      "Likely cause",
-      l,
-      "",
-      "Suggested action",
-      s,
-    ].join("\n");
+function buildCopilotTableLabel(
+  selectedSource,
+  snowflakeDemoConnected,
+  databricksDemoConnected,
+  snowflakeWarehouseTableDisplay
+) {
+  if (selectedSource === "snowflake" && snowflakeDemoConnected) {
+    return snowflakeWarehouseTableDisplay ?? null;
+  }
+  if (selectedSource === "databricks" && databricksDemoConnected) {
+    return "events";
   }
   return null;
+}
+
+function buildCopilotContextPack(ctx, meta) {
+  const lines = [];
+  lines.push(`Source: ${meta.sourceLabel}`);
+  if (meta.tableLabel) lines.push(`Table: ${meta.tableLabel}`);
+  lines.push(
+    `Rows: baseline ${ctx.previousData.length}, current ${ctx.currentData.length}`
+  );
+  const colBits = ctx.insights.map(
+    (i) => `${i.label} null=${i.nullPercentage} distinct=${i.distinctCount}`
+  );
+  lines.push(`Columns (${ctx.columns.length}): ${colBits.join("; ")}`);
+  if (ctx.diffSummaryParagraph?.trim()) {
+    lines.push(`Summary: ${ctx.diffSummaryParagraph.trim().slice(0, 400)}`);
+  }
+  const bullets = (ctx.diffSummaryBullets ?? []).slice(0, 40);
+  if (bullets.length) {
+    lines.push(`Changes: ${bullets.join(" · ")}`);
+  }
+  const risks = (ctx.riskFindings ?? []).slice(0, 20).map((r) => {
+    const mb = (r.mayBreak ?? []).slice(0, 2).join(", ");
+    const ma = (r.mayAffect ?? []).slice(0, 2).join(", ");
+    return `[${r.severity}] ${r.headline} | mayBreak: ${mb || "—"} | mayAffect: ${ma || "—"}`;
+  });
+  if (risks.length) lines.push(`Risks: ${risks.join(" || ")}`);
+  const imp = (meta.impactLines ?? []).slice(0, 15);
+  if (imp.length) lines.push(`Impact lines: ${imp.join(" · ")}`);
+  if (meta.copilotReply) {
+    lines.push(`Recent UI action: ${meta.copilotReply}`);
+  }
+  let out = lines.join("\n");
+  if (out.length > 2000) {
+    out = `${out.slice(0, 1997)}...`;
+  }
+  return out;
+}
+
+async function claudeChatReply(userMessage, packedContextString) {
+  const raw = await askClaude(userMessage, packedContextString, {
+    mode: "chat",
+  });
+  return typeof raw === "string" ? raw.trim() : String(raw ?? "").trim();
 }
 
 function buildAiExplainForStatChange(statChange, riskFindings) {
@@ -1749,14 +1786,32 @@ const insightCardStyle = {
 };
 
 const CHAT_SUGGESTIONS = [
-  { label: "Compare today vs yesterday", prompt: "compare customers today vs yesterday" },
-  { label: "High risk only", prompt: "show only high-risk changes" },
-  { label: "Show all changes", prompt: "show all changes" },
-  { label: "Explain email risk", prompt: "explain why email is risky" },
-  { label: "Missing email rows", prompt: "open rows with missing email" },
-  { label: "Go to Sources", prompt: "go to sources" },
-  { label: "Connect Snowflake", prompt: "connect snowflake" },
-  { label: "Quick summary", prompt: "Quick summary" },
+  { id: "what-changed", label: "What changed?", prompt: "What changed?" },
+  {
+    id: "biggest-risk",
+    label: "What's the biggest risk?",
+    prompt: "What's the biggest risk?",
+  },
+  {
+    id: "fix-first",
+    label: "What should I fix first?",
+    prompt: "What should I fix first?",
+  },
+  {
+    id: "email-break",
+    label: "Why did email break?",
+    prompt: "Why did email break?",
+  },
+  {
+    id: "high-risk",
+    label: "Show high risk only",
+    prompt: "high risk only",
+  },
+  {
+    id: "team-summary",
+    label: "Summarize for my team",
+    prompt: "Summarize for my team",
+  },
 ];
 
 const chatSuggestionButtonStyle = {
@@ -2637,88 +2692,71 @@ function App() {
       runSnowflakeDemoDataset,
       triggerDrillNavigation,
     });
-    if (copilotReply != null) {
-      const base = ++chatMessageIdRef.current;
-      setCommandResult({
-        copilot: true,
-        query: trimmed,
-        replyPreview: copilotReply.split("\n")[0]?.slice(0, 120) ?? "",
-      });
-      setMessages((prev) => [
-        ...prev,
-        { id: `${base}-u`, role: "user", text: trimmed },
-        { id: `${base}-a`, role: "assistant", text: copilotReply },
-      ]);
-      return;
-    }
-    const intent = detectChatIntent(trimmed);
-    if (intent === "fallback") {
-      const base = ++chatMessageIdRef.current;
-      const assistantId = `${base}-a`;
-      setCommandResult({
-        copilot: false,
-        query: trimmed,
-        replyPreview: "Thinking…",
-      });
-      setMessages((prev) => [
-        ...prev,
-        { id: `${base}-u`, role: "user", text: trimmed },
-        {
-          id: assistantId,
-          role: "assistant",
-          text: "Thinking...",
-          pending: true,
-        },
-      ]);
-      (async () => {
-        try {
-          const ctx = buildChatClaudeContext(chatContext);
-          const result = await askClaude(trimmed, ctx);
-          const formatted = formatClaudeChatAssistantText(result);
-          const finalText = formatted ?? chatReply(trimmed, chatContext);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId && m.pending
-                ? { ...m, text: finalText, pending: false }
-                : m
-            )
-          );
-          setCommandResult({
-            copilot: false,
-            query: trimmed,
-            replyPreview: finalText.split("\n")[0]?.slice(0, 120) ?? "",
-          });
-        } catch (e) {
-          console.error(e);
-          const fb = chatReply(trimmed, chatContext);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId && m.pending
-                ? { ...m, text: fb, pending: false }
-                : m
-            )
-          );
-          setCommandResult({
-            copilot: false,
-            query: trimmed,
-            replyPreview: fb.split("\n")[0]?.slice(0, 120) ?? "",
-          });
-        }
-      })();
-      return;
-    }
-    const reply = chatReply(trimmed, chatContext);
     const base = ++chatMessageIdRef.current;
+    const assistantId = `${base}-a`;
     setCommandResult({
-      copilot: false,
+      copilot: copilotReply != null,
       query: trimmed,
-      replyPreview: reply.split("\n")[0]?.slice(0, 120) ?? "",
+      replyPreview: "Analyzing...",
     });
     setMessages((prev) => [
       ...prev,
       { id: `${base}-u`, role: "user", text: trimmed },
-      { id: `${base}-a`, role: "assistant", text: reply },
+      {
+        id: assistantId,
+        role: "assistant",
+        text: "Analyzing...",
+        pending: true,
+        analyzing: true,
+      },
     ]);
+    (async () => {
+      const sourceLabel = buildCopilotSourceLabel(
+        selectedSource,
+        snowflakeDemoConnected,
+        databricksDemoConnected,
+        snowflakeWarehouseTableDisplay
+      );
+      const tableLabel = buildCopilotTableLabel(
+        selectedSource,
+        snowflakeDemoConnected,
+        databricksDemoConnected,
+        snowflakeWarehouseTableDisplay
+      );
+      const packed = buildCopilotContextPack(chatContext, {
+        sourceLabel,
+        tableLabel,
+        impactLines,
+        copilotReply,
+      });
+      let finalText = "";
+      try {
+        finalText = await claudeChatReply(trimmed, packed);
+        if (!finalText) {
+          throw new Error("empty claude reply");
+        }
+      } catch (e) {
+        console.error(e);
+        finalText = copilotReply ?? chatReply(trimmed, chatContext);
+      }
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId && m.pending
+            ? {
+                ...m,
+                text: finalText,
+                pending: false,
+                analyzing: false,
+              }
+            : m
+        )
+      );
+      setCommandResult({
+        copilot: copilotReply != null,
+        query: trimmed,
+        replyPreview: finalText.split("\n")[0]?.slice(0, 120) ?? "",
+      });
+    })();
   }
 
   function handleCopilotSend(e) {
@@ -7146,7 +7184,16 @@ function App() {
                         m.role === "assistant" ? "pre-line" : "normal",
                     }}
                   >
-                    {m.text}
+                    {m.analyzing ? (
+                      <span style={{ color: "var(--text)" }}>
+                        <span style={loadingDotStyle} aria-hidden>
+                          ●
+                        </span>{" "}
+                        Analyzing...
+                      </span>
+                    ) : (
+                      m.text
+                    )}
                   </div>
                 ))
               )}
@@ -7162,7 +7209,7 @@ function App() {
             >
               {CHAT_SUGGESTIONS.map((s) => (
                 <button
-                  key={s.prompt}
+                  key={s.id}
                   type="button"
                   className="chat-suggestion-btn"
                   onClick={() => sendChatMessage(s.prompt)}
@@ -7520,7 +7567,16 @@ function App() {
                     >
                       {m.role === "user" ? "You" : "Copilot"}
                     </span>
-                    {m.text}
+                    {m.analyzing ? (
+                      <span>
+                        <span style={loadingDotStyle} aria-hidden>
+                          ●
+                        </span>{" "}
+                        Analyzing...
+                      </span>
+                    ) : (
+                      m.text
+                    )}
                   </div>
                 ))
               )}
@@ -7561,7 +7617,7 @@ function App() {
           >
             {CHAT_SUGGESTIONS.map((s) => (
               <button
-                key={s.prompt}
+                key={s.id}
                 type="button"
                 className="copilot-bar-chip"
                 onClick={() => sendChatMessage(s.prompt)}

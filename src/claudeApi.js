@@ -32,12 +32,57 @@ function parseClaudeAnalysisJsonText(raw) {
   return null;
 }
 
-export async function askClaude(prompt, context) {
+const CHAT_SYSTEM_PROMPT = `You are a data copilot for Unlockdb. 
+You help data engineers understand data changes 
+and their impact. 
+
+You have access to the current data context 
+provided. Answer questions directly and 
+practically. Keep answers concise (2-4 sentences 
+max). Focus on actionable insights.
+
+If asked about something outside the data context, 
+say: 'I can only answer questions about the 
+current dataset and its changes.'
+
+Never make up data that isn't in the context.`;
+
+const EXPLAIN_SYSTEM_PROMPT = `You are a data change analyst for Unlockdb. 
+You analyze data changes and explain their impact clearly 
+and concisely. Always respond in this exact JSON format:
+{
+  "whatChanged": "one sentence describing the change",
+  "impact": "one sentence about business/technical impact",
+  "likelyCause": "one sentence about probable root cause",
+  "suggestedAction": "one concrete next step"
+}
+Be specific, practical, and avoid generic answers. 
+Use the data context provided.`;
+
+export async function askClaude(prompt, context, options = {}) {
+  const mode = options.mode === "chat" ? "chat" : "explain";
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
   if (!apiKey) {
-    return "AI analysis unavailable — API key not configured.";
+    return mode === "chat"
+      ? ""
+      : "AI analysis unavailable — API key not configured.";
   }
+
+  const contextBlock =
+    mode === "chat"
+      ? String(context ?? "").slice(0, 4000)
+      : JSON.stringify(context ?? {}, null, 2);
+
+  const userContent =
+    mode === "chat"
+      ? `Question:\n${prompt}\n\nDataset context:\n${contextBlock}`
+      : `Analyze this data change:
+
+${prompt}
+
+Data context:
+${contextBlock}`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -49,27 +94,12 @@ export async function askClaude(prompt, context) {
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      system: `You are a data change analyst for Unlockdb. 
-You analyze data changes and explain their impact clearly 
-and concisely. Always respond in this exact JSON format:
-{
-  "whatChanged": "one sentence describing the change",
-  "impact": "one sentence about business/technical impact",
-  "likelyCause": "one sentence about probable root cause",
-  "suggestedAction": "one concrete next step"
-}
-Be specific, practical, and avoid generic answers. 
-Use the data context provided.`,
+      max_tokens: mode === "chat" ? 512 : 1024,
+      system: mode === "chat" ? CHAT_SYSTEM_PROMPT : EXPLAIN_SYSTEM_PROMPT,
       messages: [
         {
           role: "user",
-          content: `Analyze this data change:
-
-${prompt}
-
-Data context:
-${JSON.stringify(context, null, 2)}`,
+          content: userContent,
         },
       ],
     }),
@@ -81,6 +111,10 @@ ${JSON.stringify(context, null, 2)}`,
 
   const data = await response.json();
   const text = data.content[0].text;
+
+  if (mode === "chat") {
+    return text.trim();
+  }
 
   const parsed = parseClaudeAnalysisJsonText(text);
   if (parsed) return parsed;
