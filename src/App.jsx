@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import UnlockdbLogo from "./UnlockdbLogo.jsx";
 import { askClaude } from "./claudeApi.js";
 
@@ -2476,7 +2477,8 @@ function App() {
   const [tableBrowserSource, setTableBrowserSource] = useState(null);
   const [tableBrowserList, setTableBrowserList] = useState([]);
   const [tableSearchQuery, setTableSearchQuery] = useState("");
-  const [tableBrowserPendingStub, setTableBrowserPendingStub] = useState(null);
+  const [tableBrowserSamplePromptRow, setTableBrowserSamplePromptRow] =
+    useState(null);
   const [tableBrowserAiNameTipId, setTableBrowserAiNameTipId] = useState(null);
   const [tableBrowserRowHoverKey, setTableBrowserRowHoverKey] =
     useState(null);
@@ -2973,7 +2975,7 @@ function App() {
     setTableBrowserSource(null);
     setTableBrowserList([]);
     setTableSearchQuery("");
-    setTableBrowserPendingStub(null);
+    setTableBrowserSamplePromptRow(null);
     setTableBrowserAiNameTipId(null);
     setTableBrowserRowHoverKey(null);
   }
@@ -3081,7 +3083,7 @@ function App() {
       setTableBrowserSource("snowflake");
       setTableBrowserList([...SNOWFLAKE_TABLE_BROWSER]);
       setTableSearchQuery("");
-      setTableBrowserPendingStub(null);
+      setTableBrowserSamplePromptRow(null);
       setTableBrowserAiNameTipId(null);
     }, 1000);
   }
@@ -3093,7 +3095,7 @@ function App() {
   }
 
   function loadSnowflakeWarehouseCustomers() {
-    setTableBrowserPendingStub(null);
+    setTableBrowserSamplePromptRow(null);
     setSnowflakeWarehouseDataLoaded(true);
     setSnowflakeWarehouseTableDisplay("customers");
     setPreviousData(SNOWFLAKE_DEMO_PREVIOUS);
@@ -3104,7 +3106,7 @@ function App() {
   }
 
   function loadSnowflakeWarehouseEvents() {
-    setTableBrowserPendingStub(null);
+    setTableBrowserSamplePromptRow(null);
     setSnowflakeWarehouseDataLoaded(true);
     setSnowflakeWarehouseTableDisplay("events");
     setPreviousData(DATABRICKS_DEMO_PREVIOUS);
@@ -3115,7 +3117,7 @@ function App() {
   }
 
   function loadSnowflakeWarehouseCleanCustomersNoDiff() {
-    setTableBrowserPendingStub(null);
+    setTableBrowserSamplePromptRow(null);
     const snapshot = SNOWFLAKE_DEMO_CURRENT.map((row) => ({ ...row }));
     setSnowflakeWarehouseDataLoaded(true);
     setSnowflakeWarehouseTableDisplay("customers");
@@ -3142,7 +3144,7 @@ function App() {
       setTableBrowserSource("databricks");
       setTableBrowserList([...DATABRICKS_TABLE_BROWSER]);
       setTableSearchQuery("");
-      setTableBrowserPendingStub(null);
+      setTableBrowserSamplePromptRow(null);
       setTableBrowserAiNameTipId(null);
     }, 1000);
   }
@@ -3150,7 +3152,7 @@ function App() {
   function loadDatabricksWarehouseEvents() {
     setSnowflakeWarehouseDataLoaded(false);
     setSnowflakeWarehouseTableDisplay(null);
-    setTableBrowserPendingStub(null);
+    setTableBrowserSamplePromptRow(null);
     setDatabricksWarehouseTableDisplay("events");
     setPreviousData(DATABRICKS_DEMO_PREVIOUS);
     setCurrentData(DATABRICKS_DEMO_CURRENT);
@@ -3165,33 +3167,44 @@ function App() {
     setActiveTab("sources");
   }
 
+  function tableBrowserRowHasDemoDataset(name) {
+    if (tableBrowserSource === "snowflake") {
+      return name === "customers" || name === "events";
+    }
+    if (tableBrowserSource === "databricks") {
+      return name === "customers" || name === "events";
+    }
+    return false;
+  }
+
   function handleDemoTableBrowserRowClick(tbl) {
     const name = tbl.name;
     setTableBrowserAiNameTipId(null);
-    if (tableBrowserSource === "snowflake") {
-      if (name === "customers") {
+    if (tableBrowserRowHasDemoDataset(name)) {
+      setTableBrowserSamplePromptRow(null);
+      if (tableBrowserSource === "snowflake") {
+        if (name === "customers") loadSnowflakeWarehouseCustomers();
+        else loadSnowflakeWarehouseEvents();
+      } else if (name === "customers") {
         loadSnowflakeWarehouseCustomers();
-      } else if (name === "events") {
-        loadSnowflakeWarehouseEvents();
       } else {
-        setTableBrowserPendingStub({ name });
-      }
-    } else if (tableBrowserSource === "databricks") {
-      if (name === "events") {
         loadDatabricksWarehouseEvents();
-      } else {
-        setTableBrowserPendingStub({ name });
       }
+      return;
     }
+    setTableBrowserSamplePromptRow(name);
   }
 
-  function handleDemoTableBrowserSampleLoad() {
-    if (tableBrowserSource === "snowflake") {
-      loadSnowflakeWarehouseCustomers();
-    } else if (tableBrowserSource === "databricks") {
-      loadDatabricksWarehouseEvents();
-    }
-    setTableBrowserPendingStub(null);
+  function loadCustomersSampleFromTableBrowser() {
+    setTableBrowserSamplePromptRow(null);
+    setTableBrowserAiNameTipId(null);
+    setSelectedSource("snowflake");
+    setSnowflakeDemoConnected(true);
+    setDatabricksDemoConnected(false);
+    setDatabricksWarehouseTableDisplay(null);
+    setTableBrowserSource("snowflake");
+    setTableBrowserList([...SNOWFLAKE_TABLE_BROWSER]);
+    loadSnowflakeWarehouseCustomers();
   }
 
   function triggerDrillNavigation(statChange) {
@@ -6607,48 +6620,6 @@ function App() {
                   {tableBrowserSummary.highRisk} high risk
                 </p>
 
-                {tableBrowserPendingStub &&
-                tableBrowserSource === "snowflake" ? (
-                  <div
-                    style={{
-                      marginBottom: "14px",
-                      padding: "12px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      background: "var(--social-bg)",
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: "0 0 10px",
-                        fontSize: "14px",
-                        lineHeight: 1.5,
-                        color: "var(--text)",
-                      }}
-                    >
-                      No baseline snapshot yet
-                    </p>
-                    <button
-                      type="button"
-                      className="app-ghost-btn"
-                      onClick={() => handleDemoTableBrowserSampleLoad()}
-                      style={{
-                        padding: "8px 14px",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        borderRadius: "8px",
-                        border: "1px solid var(--border)",
-                        background: "var(--bg)",
-                        color: "var(--accent)",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      Load sample comparison →
-                    </button>
-                  </div>
-                ) : null}
-
                 <div
                   style={{
                     display: "flex",
@@ -6675,14 +6646,16 @@ function App() {
                       const isHover =
                         tableBrowserRowHoverKey === rowKey && !isActive;
                       return (
-                        <button
+                        <div
                           key={tbl.name}
+                          onMouseLeave={() =>
+                            setTableBrowserRowHoverKey(null)
+                          }
+                        >
+                        <button
                           type="button"
                           onMouseEnter={() =>
                             setTableBrowserRowHoverKey(rowKey)
-                          }
-                          onMouseLeave={() =>
-                            setTableBrowserRowHoverKey(null)
                           }
                           onClick={() => handleDemoTableBrowserRowClick(tbl)}
                           style={{
@@ -6706,7 +6679,7 @@ function App() {
                               ? "var(--accent)"
                               : "var(--border)",
                             background: isHover
-                              ? "var(--bg)"
+                              ? "#1a1a1a"
                               : "var(--social-bg)",
                             boxShadow: "none",
                             cursor: "pointer",
@@ -6882,6 +6855,48 @@ function App() {
                             </div>
                           </div>
                         </button>
+                        {tableBrowserSamplePromptRow === tbl.name ? (
+                          <div
+                            style={{
+                              marginTop: "6px",
+                              marginLeft: "14px",
+                              padding: "0 4px 4px",
+                              maxWidth: "36rem",
+                            }}
+                          >
+                            <p
+                              style={{
+                                margin: "0 0 8px",
+                                fontSize: "13px",
+                                lineHeight: 1.45,
+                                color: "var(--text)",
+                              }}
+                            >
+                              No snapshot available yet.
+                            </p>
+                            <button
+                              type="button"
+                              className="app-ghost-btn"
+                              onClick={() =>
+                                loadCustomersSampleFromTableBrowser()
+                              }
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: "13px",
+                                fontWeight: 600,
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                background: "var(--bg)",
+                                color: "var(--accent)",
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              Click to load sample comparison →
+                            </button>
+                          </div>
+                        ) : null}
+                        </div>
                       );
                     })
                   )}
@@ -7109,48 +7124,6 @@ function App() {
                   {tableBrowserSummary.highRisk} high risk
                 </p>
 
-                {tableBrowserPendingStub &&
-                tableBrowserSource === "databricks" ? (
-                  <div
-                    style={{
-                      marginBottom: "14px",
-                      padding: "12px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid var(--border)",
-                      background: "var(--social-bg)",
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: "0 0 10px",
-                        fontSize: "14px",
-                        lineHeight: 1.5,
-                        color: "var(--text)",
-                      }}
-                    >
-                      No baseline snapshot yet
-                    </p>
-                    <button
-                      type="button"
-                      className="app-ghost-btn"
-                      onClick={() => handleDemoTableBrowserSampleLoad()}
-                      style={{
-                        padding: "8px 14px",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        borderRadius: "8px",
-                        border: "1px solid var(--border)",
-                        background: "var(--bg)",
-                        color: "var(--accent)",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      Load sample comparison →
-                    </button>
-                  </div>
-                ) : null}
-
                 <div
                   style={{
                     display: "flex",
@@ -7176,14 +7149,16 @@ function App() {
                       const isHover =
                         tableBrowserRowHoverKey === rowKey && !isActive;
                       return (
-                        <button
+                        <div
                           key={tbl.name}
+                          onMouseLeave={() =>
+                            setTableBrowserRowHoverKey(null)
+                          }
+                        >
+                        <button
                           type="button"
                           onMouseEnter={() =>
                             setTableBrowserRowHoverKey(rowKey)
-                          }
-                          onMouseLeave={() =>
-                            setTableBrowserRowHoverKey(null)
                           }
                           onClick={() => handleDemoTableBrowserRowClick(tbl)}
                           style={{
@@ -7207,7 +7182,7 @@ function App() {
                               ? "var(--accent)"
                               : "var(--border)",
                             background: isHover
-                              ? "var(--bg)"
+                              ? "#1a1a1a"
                               : "var(--social-bg)",
                             boxShadow: "none",
                             cursor: "pointer",
@@ -7383,6 +7358,48 @@ function App() {
                             </div>
                           </div>
                         </button>
+                        {tableBrowserSamplePromptRow === tbl.name ? (
+                          <div
+                            style={{
+                              marginTop: "6px",
+                              marginLeft: "14px",
+                              padding: "0 4px 4px",
+                              maxWidth: "36rem",
+                            }}
+                          >
+                            <p
+                              style={{
+                                margin: "0 0 8px",
+                                fontSize: "13px",
+                                lineHeight: 1.45,
+                                color: "var(--text)",
+                              }}
+                            >
+                              No snapshot available yet.
+                            </p>
+                            <button
+                              type="button"
+                              className="app-ghost-btn"
+                              onClick={() =>
+                                loadCustomersSampleFromTableBrowser()
+                              }
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: "13px",
+                                fontWeight: 600,
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                background: "var(--bg)",
+                                color: "var(--accent)",
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              Click to load sample comparison →
+                            </button>
+                          </div>
+                        ) : null}
+                        </div>
                       );
                     })
                   )}
@@ -8458,18 +8475,21 @@ function App() {
           ))}
       </main>
 
-      <footer
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 25,
-          borderTop: "1px solid #1f1f1f",
-          background: "#0a0a0a",
-          boxShadow: "none",
-        }}
-      >
+      {createPortal(
+        <footer
+          style={{
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 35,
+            borderTop: "1px solid #1f1f1f",
+            background: "#0a0a0a",
+            boxShadow: "none",
+            pointerEvents: "auto",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          }}
+        >
         <div
           style={{
             maxWidth: "1126px",
@@ -8477,6 +8497,7 @@ function App() {
             width: "100%",
             boxSizing: "border-box",
             padding: "10px 20px 14px",
+            pointerEvents: "auto",
           }}
         >
           {copilotHistoryExpanded ? (
@@ -8569,6 +8590,9 @@ function App() {
               alignItems: "center",
               gap: "6px",
               marginBottom: "10px",
+              position: "relative",
+              zIndex: 1,
+              pointerEvents: "auto",
             }}
           >
             {CHAT_SUGGESTIONS.map((s) => (
@@ -8590,10 +8614,16 @@ function App() {
               gap: "8px",
               alignItems: "stretch",
               width: "100%",
+              position: "relative",
+              zIndex: 1,
+              pointerEvents: "auto",
             }}
           >
             <input
               type="text"
+              name="unlockdb-copilot-command"
+              autoComplete="off"
+              spellCheck={false}
               value={copilotInput}
               onChange={(e) => setCopilotInput(e.target.value)}
               placeholder="Command — e.g. compare customers today vs yesterday, high risk only, go to sources…"
@@ -8605,6 +8635,9 @@ function App() {
                 padding: "10px 12px",
                 borderRadius: "8px",
                 fontSize: "14px",
+                pointerEvents: "auto",
+                position: "relative",
+                zIndex: 1,
               }}
             />
             <button
@@ -8657,7 +8690,9 @@ function App() {
             ) : null}
           </div>
         </div>
-      </footer>
+        </footer>,
+        document.body
+      )}
     </div>
   );
 }
