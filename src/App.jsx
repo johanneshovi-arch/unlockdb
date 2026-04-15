@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import UnlockdbLogo from "./UnlockdbLogo.jsx";
 
 let lastSnapshotKeyForHistory = "";
 
@@ -602,10 +603,10 @@ const settingsPageSelectStyle = {
 
 const settingsPageSectionCardStyle = {
   padding: "16px 18px",
-  borderRadius: "12px",
+  borderRadius: "10px",
   border: "1px solid var(--border)",
   background: "var(--social-bg)",
-  boxShadow: "var(--shadow)",
+  boxShadow: "none",
   marginBottom: "18px",
 };
 
@@ -765,7 +766,7 @@ const aiExplainSectionLabelStyle = {
   fontWeight: 700,
   letterSpacing: "0.05em",
   textTransform: "uppercase",
-  color: "var(--text-h)",
+  color: "var(--accent)",
   marginBottom: "6px",
 };
 
@@ -1682,7 +1683,7 @@ const insightCardStyle = {
   border: "1px solid var(--border)",
   borderRadius: "10px",
   background: "var(--social-bg)",
-  boxShadow: "var(--shadow)",
+  boxShadow: "none",
   fontSize: "15px",
   lineHeight: 1.45,
   color: "var(--text)",
@@ -1705,24 +1706,11 @@ const chatSuggestionButtonStyle = {
   fontFamily: "inherit",
   lineHeight: 1.3,
   borderRadius: "8px",
-  border: "1px solid var(--border)",
-  background: "var(--social-bg)",
-  color: "var(--text-h)",
+  border: "1px solid #333333",
+  background: "#111111",
+  color: "#777777",
   cursor: "pointer",
-  transition: "background 0.15s ease, border-color 0.15s ease",
-};
-
-const copilotBarChipStyle = {
-  padding: "5px 10px",
-  fontSize: "13px",
-  fontFamily: "inherit",
-  lineHeight: 1.35,
-  borderRadius: "6px",
-  border: "1px solid var(--border)",
-  background: "var(--social-bg)",
-  color: "var(--text-h)",
-  cursor: "pointer",
-  transition: "background 0.15s ease, border-color 0.15s ease",
+  transition: "background 0.15s ease, border-color 0.15s ease, color 0.15s ease",
 };
 
 const authInputStyle = {
@@ -1731,11 +1719,11 @@ const authInputStyle = {
   padding: "10px 12px",
   marginTop: "6px",
   borderRadius: "8px",
-  border: "1px solid var(--border)",
+  border: "1px solid #2f2f2f",
   fontSize: "15px",
   fontFamily: "inherit",
-  background: "var(--bg)",
-  color: "var(--text-h)",
+  background: "#0f0f0f",
+  color: "#ffffff",
 };
 
 const authLabelStyle = {
@@ -1747,27 +1735,20 @@ const authLabelStyle = {
 };
 
 function navTabStyle(isActive, isHovered) {
-  const borderColor = isActive
-    ? "var(--accent-border)"
-    : isHovered
-      ? "var(--border)"
-      : "transparent";
   return {
     padding: "8px 14px",
     borderRadius: "8px",
-    border: `1px solid ${borderColor}`,
-    background: isActive
-      ? "var(--accent-bg)"
-      : isHovered
-        ? "var(--social-bg)"
-        : "transparent",
-    color: isActive ? "var(--accent)" : "var(--text-h)",
+    border: isActive ? "1px solid #2f2f2f" : "1px solid transparent",
+    background: isActive || isHovered ? "#111111" : "transparent",
+    color: isActive ? "#ffffff" : isHovered ? "#999999" : "#666666",
+    boxShadow: isActive ? "0 0 12px rgba(124, 58, 237, 0.15)" : "none",
     cursor: "pointer",
     fontSize: "14px",
     fontWeight: isActive ? 600 : 500,
     fontFamily: "inherit",
     lineHeight: 1.2,
-    transition: "background 0.15s ease, border-color 0.15s ease, color 0.15s ease",
+    transition:
+      "background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
   };
 }
 
@@ -2595,21 +2576,51 @@ function App() {
           <button
             type="button"
             onClick={() => setActiveTab("overview")}
-            className="app-ghost-btn"
             style={{
-              fontWeight: 600,
-              fontSize: "17px",
-              color: "var(--text-h)",
-              marginRight: "4px",
-              padding: "6px 10px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginRight: "8px",
+              padding: "4px 8px 4px 4px",
               borderRadius: "8px",
-              border: "1px solid transparent",
+              border: "none",
               background: "transparent",
               cursor: "pointer",
               fontFamily: "inherit",
+              textAlign: "left",
             }}
           >
-            Unlockdb
+            <UnlockdbLogo />
+            <span
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                lineHeight: 1.15,
+              }}
+            >
+              <span
+                style={{
+                  fontWeight: 600,
+                  color: "#ffffff",
+                  fontSize: "16px",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Unlockdb
+              </span>
+              <span
+                style={{
+                  fontSize: "10px",
+                  color: "#555555",
+                  letterSpacing: "0.05em",
+                  fontWeight: 500,
+                  marginTop: "2px",
+                }}
+              >
+                data change intelligence
+              </span>
+            </span>
           </button>
           {navTabs.map((tab) => (
             <button
@@ -2637,8 +2648,8 @@ function App() {
               gap: "12px",
               flexWrap: "wrap",
               padding: "10px 20px",
-              borderTop: "1px solid var(--risk-high-border)",
-              background: "var(--risk-high-bg)",
+              borderBottom: "1px solid rgba(239, 68, 68, 0.2)",
+              background: "rgba(239, 68, 68, 0.08)",
               maxWidth: "1126px",
               margin: "0 auto",
               width: "100%",
@@ -2659,16 +2670,12 @@ function App() {
             <button
               type="button"
               onClick={() => setDismissed(true)}
+              className="app-ghost-btn"
               style={{
                 padding: "6px 12px",
                 fontSize: "13px",
-                fontFamily: "inherit",
                 fontWeight: 600,
                 borderRadius: "6px",
-                border: "1px solid var(--risk-high-border)",
-                background: "var(--bg)",
-                color: "var(--text-h)",
-                cursor: "pointer",
                 flexShrink: 0,
               }}
             >
@@ -2772,9 +2779,6 @@ function App() {
                     style={{
                       padding: "10px 22px",
                       borderRadius: "8px",
-                      border: "1px solid var(--accent-border)",
-                      background: "var(--accent-bg)",
-                      color: "var(--accent)",
                       fontWeight: 600,
                       fontSize: "14px",
                       fontFamily: "inherit",
@@ -3177,7 +3181,6 @@ function App() {
                         fontSize: "15px",
                         color: "var(--text)",
                         padding: "18px 20px",
-                        boxShadow: "var(--shadow)",
                       }}
                     >
                       {diffSummaryParagraph.trim() ||
@@ -3192,7 +3195,6 @@ function App() {
                         fontSize: "15px",
                         color: "var(--text)",
                         padding: "18px 20px",
-                        boxShadow: "var(--shadow)",
                       }}
                     >
                       No HIGH risk changes match this filter. Try{" "}
@@ -3206,7 +3208,6 @@ function App() {
                         fontSize: "15px",
                         color: "var(--text)",
                         padding: "18px 20px",
-                        boxShadow: "var(--shadow)",
                       }}
                     >
                       No changes to show here — they may be acknowledged (see
@@ -3230,16 +3231,16 @@ function App() {
                             : "var(--text-h)";
                       const cardBg =
                         sc.tier === "HIGH"
-                          ? "var(--risk-high-bg)"
+                          ? "#0f0808"
                           : sc.tier === "MEDIUM"
-                            ? "var(--risk-medium-bg)"
-                            : "var(--code-bg)";
-                      const cardBorder =
+                            ? "#0f0e08"
+                            : "#111111";
+                      const tierLeftBorder =
                         sc.tier === "HIGH"
-                          ? "var(--risk-high-border)"
+                          ? "#ef4444"
                           : sc.tier === "MEDIUM"
-                            ? "var(--risk-medium-border)"
-                            : "var(--border)";
+                            ? "#f59e0b"
+                            : "#333333";
                       const primaryImpact = sc.impactLines[0];
                       const isSelected = selectedChange?.id === sc.id;
                       const isHovered = feedCardHoverId === sc.id;
@@ -3251,20 +3252,26 @@ function App() {
                           style={{
                             margin: 0,
                             borderRadius: "10px",
-                            border: `1px solid ${cardBorder}`,
-                            borderLeftWidth: isSelected ? 6 : 5,
+                            border: "1px solid #1f1f1f",
+                            borderLeftWidth: "3px",
                             borderLeftStyle: "solid",
                             borderLeftColor: isSelected
                               ? "var(--accent)"
-                              : cardBorder,
+                              : tierLeftBorder,
                             background: cardBg,
-                            boxShadow: isSelected
-                              ? "var(--shadow), 0 0 0 2px var(--accent)"
-                              : "var(--shadow)",
+                            boxShadow:
+                              sc.tier === "HIGH"
+                                ? isSelected
+                                  ? "0 0 12px rgba(239, 68, 68, 0.1), 0 0 0 2px rgba(124, 58, 237, 0.35)"
+                                  : "0 0 12px rgba(239, 68, 68, 0.1)"
+                                : isSelected
+                                  ? "0 0 0 2px rgba(124, 58, 237, 0.35)"
+                                  : "none",
                             boxSizing: "border-box",
                             overflow: "hidden",
-                            filter: isHovered ? "brightness(0.96)" : undefined,
-                            transition: "filter 0.15s ease, border-left-width 0.12s ease",
+                            filter: isHovered ? "brightness(1.04)" : undefined,
+                            transition:
+                              "filter 0.15s ease, border-color 0.12s ease, box-shadow 0.12s ease",
                           }}
                         >
                           <button
@@ -3432,7 +3439,7 @@ function App() {
                         border: "none",
                         padding: 0,
                         margin: 0,
-                        background: "rgba(15, 18, 28, 0.2)",
+                        background: "rgba(0, 0, 0, 0.55)",
                         cursor: "pointer",
                       }}
                     />
@@ -3444,9 +3451,9 @@ function App() {
                         bottom: 0,
                         width: "min(400px, 94vw)",
                         zIndex: 39,
-                        background: "var(--bg)",
-                        borderLeft: "1px solid var(--border)",
-                        boxShadow: "-12px 0 40px rgba(0,0,0,0.12)",
+                        background: "#0d0d0d",
+                        borderLeft: "1px solid #1f1f1f",
+                        boxShadow: "-8px 0 32px rgba(0,0,0,0.45)",
                         overflowY: "auto",
                         padding: "22px 20px 100px",
                         boxSizing: "border-box",
@@ -3590,12 +3597,12 @@ function App() {
                         <div
                           style={{
                             overflowX: "auto",
-                            border: "1px solid var(--border)",
-                            borderRadius: "8px",
+                            borderRadius: "10px",
                             background: "var(--code-bg)",
                           }}
                         >
                           <table
+                            className="unlockdb-data-grid"
                             style={{
                               borderCollapse: "collapse",
                               width: "100%",
@@ -3649,9 +3656,13 @@ function App() {
                                   >
                                     {r.value === null ||
                                     r.value === undefined ||
-                                    r.value === ""
-                                      ? "—"
-                                      : String(r.value)}
+                                    r.value === "" ? (
+                                      <span className="unlockdb-cell-null">
+                                        —
+                                      </span>
+                                    ) : (
+                                      String(r.value)
+                                    )}
                                   </td>
                                 </tr>
                               ))}
@@ -3813,14 +3824,11 @@ function App() {
                               onChange={(e) =>
                                 setGridFilterColumnKey(e.target.value)
                               }
+                              className="unlockdb-field"
                               style={{
                                 padding: "8px 10px",
                                 borderRadius: "8px",
-                                border: "1px solid var(--border)",
                                 fontSize: "14px",
-                                fontFamily: "inherit",
-                                background: "var(--bg)",
-                                color: "var(--text-h)",
                               }}
                             >
                               <option value="">Any column</option>
@@ -3853,14 +3861,11 @@ function App() {
                               placeholder="e.g. Denmark"
                               disabled={!gridFilterColumnKey}
                               aria-label="Filter by cell value"
+                              className="unlockdb-field"
                               style={{
                                 padding: "8px 10px",
                                 borderRadius: "8px",
-                                border: "1px solid var(--border)",
                                 fontSize: "14px",
-                                fontFamily: "inherit",
-                                background: "var(--bg)",
-                                color: "var(--text-h)",
                                 opacity: gridFilterColumnKey ? 1 : 0.55,
                               }}
                             />
@@ -3942,11 +3947,7 @@ function App() {
                           margin: "0 auto 4px",
                         }}
                       >
-                        <table
-                          border="1"
-                          cellPadding="10"
-                          style={{ borderCollapse: "collapse" }}
-                        >
+                        <table className="unlockdb-data-grid">
                           <thead>
                             <tr>
                               {columns.map((col) => (
@@ -4041,9 +4042,13 @@ function App() {
                                       <td key={col.key}>
                                         {row[col.key] === null ||
                                         row[col.key] === undefined ||
-                                        row[col.key] === ""
-                                          ? "—"
-                                          : String(row[col.key])}
+                                        row[col.key] === "" ? (
+                                          <span className="unlockdb-cell-null">
+                                            —
+                                          </span>
+                                        ) : (
+                                          String(row[col.key])
+                                        )}
                                       </td>
                                     ))}
                                   </tr>
@@ -4067,7 +4072,7 @@ function App() {
                               border: "none",
                               padding: 0,
                               margin: 0,
-                              background: "rgba(15, 18, 28, 0.18)",
+                              background: "rgba(0, 0, 0, 0.55)",
                               cursor: "pointer",
                             }}
                           />
@@ -4079,9 +4084,9 @@ function App() {
                               bottom: 0,
                               width: "min(380px, 94vw)",
                               zIndex: 37,
-                              background: "var(--bg)",
-                              borderLeft: "1px solid var(--border)",
-                              boxShadow: "-12px 0 40px rgba(0,0,0,0.12)",
+                              background: "#0d0d0d",
+                              borderLeft: "1px solid #1f1f1f",
+                              boxShadow: "-8px 0 32px rgba(0,0,0,0.45)",
                               overflowY: "auto",
                               padding: "20px 18px 100px",
                               boxSizing: "border-box",
@@ -5236,9 +5241,6 @@ function App() {
                     style={{
                       padding: "10px 18px",
                       borderRadius: "8px",
-                      border: "1px solid var(--accent-border)",
-                      background: "var(--accent-bg)",
-                      color: "var(--accent)",
                       fontWeight: 600,
                       fontSize: "14px",
                       fontFamily: "inherit",
@@ -5254,9 +5256,6 @@ function App() {
                     style={{
                       padding: "10px 18px",
                       borderRadius: "8px",
-                      border: "1px solid var(--accent-border)",
-                      background: "var(--accent-bg)",
-                      color: "var(--accent)",
                       fontWeight: 600,
                       fontSize: "14px",
                       fontFamily: "inherit",
@@ -5313,9 +5312,9 @@ function App() {
                 onSubmit={handleSnowflakeDemoConnect}
                 style={{
                   padding: "18px 20px",
-                  borderRadius: "12px",
-                  border: "1px solid var(--accent-border)",
-                  background: "var(--accent-bg)",
+                  borderRadius: "10px",
+                  border: "1px solid var(--border)",
+                  background: "var(--social-bg)",
                   boxSizing: "border-box",
                   marginBottom: "20px",
                 }}
@@ -5353,6 +5352,7 @@ function App() {
                         account: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="e.g. xy12345.us-east-1"
                   />
@@ -5367,6 +5367,7 @@ function App() {
                     onChange={(e) =>
                       setSnowflakeForm((f) => ({ ...f, user: e.target.value }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="Service user"
                   />
@@ -5384,6 +5385,7 @@ function App() {
                         warehouse: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="COMPUTE_WH"
                   />
@@ -5401,6 +5403,7 @@ function App() {
                         database: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="analytics"
                   />
@@ -5418,6 +5421,7 @@ function App() {
                         schema: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="public"
                   />
@@ -5430,9 +5434,6 @@ function App() {
                     marginTop: "14px",
                     padding: "12px 22px",
                     borderRadius: "8px",
-                    border: "1px solid var(--accent-border)",
-                    background: "var(--accent-bg)",
-                    color: "var(--accent)",
                     fontWeight: 600,
                     fontSize: "14px",
                     fontFamily: "inherit",
@@ -5528,6 +5529,7 @@ function App() {
                   onChange={(e) => setSnowflakeTableSearch(e.target.value)}
                   placeholder="Search tables..."
                   aria-label="Search tables"
+                  className="unlockdb-field"
                   style={{
                     width: "100%",
                     maxWidth: "28rem",
@@ -5535,11 +5537,7 @@ function App() {
                     padding: "10px 12px",
                     marginBottom: "14px",
                     borderRadius: "8px",
-                    border: "1px solid var(--border)",
                     fontSize: "14px",
-                    fontFamily: "inherit",
-                    background: "var(--bg)",
-                    color: "var(--text-h)",
                   }}
                 />
 
@@ -5644,7 +5642,7 @@ function App() {
                             background: isHover
                               ? "var(--bg)"
                               : "var(--social-bg)",
-                            boxShadow: "var(--shadow)",
+                            boxShadow: "none",
                             cursor: "pointer",
                             fontFamily: "inherit",
                             transition:
@@ -5734,9 +5732,9 @@ function App() {
                 onSubmit={handleDatabricksDemoConnect}
                 style={{
                   padding: "18px 20px",
-                  borderRadius: "12px",
-                  border: "1px solid var(--accent-border)",
-                  background: "var(--accent-bg)",
+                  borderRadius: "10px",
+                  border: "1px solid var(--border)",
+                  background: "var(--social-bg)",
                   boxSizing: "border-box",
                   marginBottom: "20px",
                 }}
@@ -5774,6 +5772,7 @@ function App() {
                         workspaceUrl: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="https://dbc-xxxxxxxx.cloud.databricks.com"
                   />
@@ -5791,6 +5790,7 @@ function App() {
                         catalog: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="main"
                   />
@@ -5808,6 +5808,7 @@ function App() {
                         schema: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="analytics"
                   />
@@ -5825,6 +5826,7 @@ function App() {
                         clusterWarehouse: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="Shared autoscaling cluster"
                   />
@@ -5837,9 +5839,6 @@ function App() {
                     marginTop: "14px",
                     padding: "12px 22px",
                     borderRadius: "8px",
-                    border: "1px solid var(--accent-border)",
-                    background: "var(--accent-bg)",
-                    color: "var(--accent)",
                     fontWeight: 600,
                     fontSize: "14px",
                     fontFamily: "inherit",
@@ -5954,6 +5953,7 @@ function App() {
                         account: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="Workspace URL or Fabric tenant"
                   />
@@ -5968,6 +5968,7 @@ function App() {
                     onChange={(e) =>
                       setConnectionForm((f) => ({ ...f, user: e.target.value }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="User or service principal"
                   />
@@ -5987,6 +5988,7 @@ function App() {
                         warehouse: e.target.value,
                       }))
                     }
+                    className="unlockdb-field"
                     style={authInputStyle}
                     placeholder="Warehouse or cluster"
                   />
@@ -5998,9 +6000,6 @@ function App() {
                     marginTop: "14px",
                     padding: "10px 22px",
                     borderRadius: "8px",
-                    border: "1px solid var(--accent-border)",
-                    background: "var(--accent-bg)",
-                    color: "var(--accent)",
                     fontWeight: 600,
                     fontSize: "14px",
                     fontFamily: "inherit",
@@ -6054,7 +6053,7 @@ function App() {
                     borderRadius: "12px",
                     border: "1px solid var(--border)",
                     background: "var(--social-bg)",
-                    boxShadow: "var(--shadow)",
+                    boxShadow: "none",
                   }}
                 >
                   <div
@@ -6174,6 +6173,7 @@ function App() {
                             : 0
                         );
                       }}
+                      className="unlockdb-field"
                       style={settingsPageNumberInputStyle}
                       aria-label="Null rate increase threshold percent"
                     />
@@ -6233,6 +6233,7 @@ function App() {
                             : 0
                         );
                       }}
+                      className="unlockdb-field"
                       style={settingsPageNumberInputStyle}
                       aria-label="Distinct value change threshold percent"
                     />
@@ -6291,6 +6292,7 @@ function App() {
                             : 0
                         );
                       }}
+                      className="unlockdb-field"
                       style={settingsPageNumberInputStyle}
                       aria-label="Row count change threshold percent"
                     />
@@ -6382,6 +6384,7 @@ function App() {
                               [tableId]: e.target.value,
                             }))
                           }
+                          className="unlockdb-field"
                           style={settingsPageSelectStyle}
                           aria-label={`Sensitivity for ${tableId}`}
                         >
@@ -6523,9 +6526,6 @@ function App() {
                 style={{
                   padding: "10px 22px",
                   borderRadius: "8px",
-                  border: "1px solid var(--accent-border)",
-                  background: "var(--accent-bg)",
-                  color: "var(--accent)",
                   fontWeight: 600,
                   fontSize: "14px",
                   fontFamily: "inherit",
@@ -6562,7 +6562,7 @@ function App() {
                 border: "1px solid var(--border)",
                 background: "var(--code-bg)",
                 padding: "4px 16px",
-                boxShadow: "var(--shadow)",
+                boxShadow: "none",
               }}
             >
               <ul
@@ -6739,7 +6739,7 @@ function App() {
                   borderRadius: "12px",
                   border: "1px solid var(--border)",
                   background: "var(--social-bg)",
-                  boxShadow: "var(--shadow)",
+                  boxShadow: "none",
                   fontSize: "14px",
                   lineHeight: 1.55,
                   color: "var(--text)",
@@ -6884,7 +6884,7 @@ function App() {
                   borderRadius: "12px",
                   border: "1px solid var(--border)",
                   background: "var(--social-bg)",
-                  boxShadow: "var(--shadow)",
+                  boxShadow: "none",
                 }}
               >
                 {authMode === "login" ? (
@@ -6896,6 +6896,7 @@ function App() {
                         autoComplete="email"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
+                        className="unlockdb-field"
                         style={authInputStyle}
                       />
                     </label>
@@ -6906,6 +6907,7 @@ function App() {
                         autoComplete="current-password"
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
+                        className="unlockdb-field"
                         style={authInputStyle}
                       />
                     </label>
@@ -6917,9 +6919,6 @@ function App() {
                         marginTop: "8px",
                         padding: "12px 16px",
                         borderRadius: "8px",
-                        border: "1px solid var(--accent-border)",
-                        background: "var(--accent-bg)",
-                        color: "var(--accent)",
                         fontWeight: 600,
                         fontSize: "15px",
                         fontFamily: "inherit",
@@ -6938,6 +6937,7 @@ function App() {
                         autoComplete="name"
                         value={signupName}
                         onChange={(e) => setSignupName(e.target.value)}
+                        className="unlockdb-field"
                         style={authInputStyle}
                       />
                     </label>
@@ -6948,6 +6948,7 @@ function App() {
                         autoComplete="email"
                         value={signupEmail}
                         onChange={(e) => setSignupEmail(e.target.value)}
+                        className="unlockdb-field"
                         style={authInputStyle}
                       />
                     </label>
@@ -6958,6 +6959,7 @@ function App() {
                         autoComplete="new-password"
                         value={signupPassword}
                         onChange={(e) => setSignupPassword(e.target.value)}
+                        className="unlockdb-field"
                         style={authInputStyle}
                       />
                     </label>
@@ -6969,9 +6971,6 @@ function App() {
                         marginTop: "8px",
                         padding: "12px 16px",
                         borderRadius: "8px",
-                        border: "1px solid var(--accent-border)",
-                        background: "var(--accent-bg)",
-                        color: "var(--accent)",
                         fontWeight: 600,
                         fontSize: "15px",
                         fontFamily: "inherit",
@@ -6994,9 +6993,9 @@ function App() {
           right: 0,
           bottom: 0,
           zIndex: 25,
-          borderTop: "1px solid var(--border)",
-          background: "var(--bg)",
-          boxShadow: "0 -6px 24px rgba(0,0,0,0.06)",
+          borderTop: "1px solid #1f1f1f",
+          background: "#0a0a0a",
+          boxShadow: "none",
         }}
       >
         <div
@@ -7095,9 +7094,8 @@ function App() {
               <button
                 key={s.prompt}
                 type="button"
-                className="app-ghost-btn"
+                className="copilot-bar-chip"
                 onClick={() => sendChatMessage(s.prompt)}
-                style={copilotBarChipStyle}
               >
                 {s.label}
               </button>
@@ -7119,16 +7117,13 @@ function App() {
               onChange={(e) => setCopilotInput(e.target.value)}
               placeholder="Command — e.g. compare customers today vs yesterday, high risk only, go to sources…"
               aria-label="Copilot command"
+              className="unlockdb-field"
               style={{
                 flex: 1,
                 minWidth: 0,
                 padding: "10px 12px",
                 borderRadius: "8px",
-                border: "1px solid var(--border)",
                 fontSize: "14px",
-                fontFamily: "inherit",
-                background: "var(--bg)",
-                color: "var(--text-h)",
               }}
             />
             <button
@@ -7137,13 +7132,7 @@ function App() {
               style={{
                 padding: "10px 16px",
                 borderRadius: "8px",
-                border: "1px solid var(--accent-border)",
-                background: "var(--accent-bg)",
-                color: "var(--accent)",
-                fontWeight: 600,
                 fontSize: "14px",
-                fontFamily: "inherit",
-                cursor: "pointer",
                 flexShrink: 0,
               }}
             >
