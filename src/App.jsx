@@ -2477,8 +2477,6 @@ function App() {
   const [tableBrowserSource, setTableBrowserSource] = useState(null);
   const [tableBrowserList, setTableBrowserList] = useState([]);
   const [tableSearchQuery, setTableSearchQuery] = useState("");
-  const [tableBrowserSamplePromptRow, setTableBrowserSamplePromptRow] =
-    useState(null);
   const [tableBrowserAiNameTipId, setTableBrowserAiNameTipId] = useState(null);
   const [tableBrowserRowHoverKey, setTableBrowserRowHoverKey] =
     useState(null);
@@ -2976,7 +2974,6 @@ function App() {
     setTableBrowserSource(null);
     setTableBrowserList([]);
     setTableSearchQuery("");
-    setTableBrowserSamplePromptRow(null);
     setTableBrowserAiNameTipId(null);
     setTableBrowserRowHoverKey(null);
   }
@@ -3084,7 +3081,6 @@ function App() {
       setTableBrowserSource("snowflake");
       setTableBrowserList([...SNOWFLAKE_TABLE_BROWSER]);
       setTableSearchQuery("");
-      setTableBrowserSamplePromptRow(null);
       setTableBrowserAiNameTipId(null);
     }, 1000);
   }
@@ -3095,30 +3091,27 @@ function App() {
     setActiveTab("sources");
   }
 
-  function loadSnowflakeWarehouseCustomers() {
-    setTableBrowserSamplePromptRow(null);
+  function loadDemoForWarehouseTable(tableName) {
+    setTableBrowserAiNameTipId(null);
+    setSnowflakeDemoConnected(true);
+    setDatabricksDemoConnected(false);
+    setDatabricksWarehouseTableDisplay(null);
+    setSelectedSource("snowflake");
     setSnowflakeWarehouseDataLoaded(true);
-    setSnowflakeWarehouseTableDisplay("customers");
-    setPreviousData(SNOWFLAKE_DEMO_PREVIOUS);
-    setCurrentData(SNOWFLAKE_DEMO_CURRENT);
-    setPreviousFileName("Snowflake · customers (baseline)");
-    setCurrentFileName("Snowflake · customers (current)");
-    setActiveTab("overview");
-  }
-
-  function loadSnowflakeWarehouseEvents() {
-    setTableBrowserSamplePromptRow(null);
-    setSnowflakeWarehouseDataLoaded(true);
-    setSnowflakeWarehouseTableDisplay("events");
-    setPreviousData(DATABRICKS_DEMO_PREVIOUS);
-    setCurrentData(DATABRICKS_DEMO_CURRENT);
-    setPreviousFileName("Snowflake · events (baseline)");
-    setCurrentFileName("Snowflake · events (current)");
+    setSnowflakeWarehouseTableDisplay(tableName);
+    if (tableName === "events") {
+      setPreviousData(DATABRICKS_DEMO_PREVIOUS);
+      setCurrentData(DATABRICKS_DEMO_CURRENT);
+    } else {
+      setPreviousData(SNOWFLAKE_DEMO_PREVIOUS);
+      setCurrentData(SNOWFLAKE_DEMO_CURRENT);
+    }
+    setPreviousFileName(`Snowflake · ${tableName} (baseline)`);
+    setCurrentFileName(`Snowflake · ${tableName} (current)`);
     setActiveTab("overview");
   }
 
   function loadSnowflakeWarehouseCleanCustomersNoDiff() {
-    setTableBrowserSamplePromptRow(null);
     const snapshot = SNOWFLAKE_DEMO_CURRENT.map((row) => ({ ...row }));
     setSnowflakeWarehouseDataLoaded(true);
     setSnowflakeWarehouseTableDisplay("customers");
@@ -3145,67 +3138,14 @@ function App() {
       setTableBrowserSource("databricks");
       setTableBrowserList([...DATABRICKS_TABLE_BROWSER]);
       setTableSearchQuery("");
-      setTableBrowserSamplePromptRow(null);
       setTableBrowserAiNameTipId(null);
     }, 1000);
-  }
-
-  function loadDatabricksWarehouseEvents() {
-    setSnowflakeWarehouseDataLoaded(false);
-    setSnowflakeWarehouseTableDisplay(null);
-    setTableBrowserSamplePromptRow(null);
-    setDatabricksWarehouseTableDisplay("events");
-    setPreviousData(DATABRICKS_DEMO_PREVIOUS);
-    setCurrentData(DATABRICKS_DEMO_CURRENT);
-    setPreviousFileName("Databricks · events (baseline)");
-    setCurrentFileName("Databricks · events (current)");
-    setActiveTab("overview");
   }
 
   function handleDatabricksDemoConnect(e) {
     e.preventDefault();
     runDatabricksDemoDataset();
     setActiveTab("sources");
-  }
-
-  function tableBrowserRowHasDemoDataset(name) {
-    if (tableBrowserSource === "snowflake") {
-      return name === "customers" || name === "events";
-    }
-    if (tableBrowserSource === "databricks") {
-      return name === "customers" || name === "events";
-    }
-    return false;
-  }
-
-  function handleDemoTableBrowserRowClick(tbl) {
-    const name = tbl.name;
-    setTableBrowserAiNameTipId(null);
-    if (tableBrowserRowHasDemoDataset(name)) {
-      setTableBrowserSamplePromptRow(null);
-      if (tableBrowserSource === "snowflake") {
-        if (name === "customers") loadSnowflakeWarehouseCustomers();
-        else loadSnowflakeWarehouseEvents();
-      } else if (name === "customers") {
-        loadSnowflakeWarehouseCustomers();
-      } else {
-        loadDatabricksWarehouseEvents();
-      }
-      return;
-    }
-    setTableBrowserSamplePromptRow(name);
-  }
-
-  function loadCustomersSampleFromTableBrowser() {
-    setTableBrowserSamplePromptRow(null);
-    setTableBrowserAiNameTipId(null);
-    setSelectedSource("snowflake");
-    setSnowflakeDemoConnected(true);
-    setDatabricksDemoConnected(false);
-    setDatabricksWarehouseTableDisplay(null);
-    setTableBrowserSource("snowflake");
-    setTableBrowserList([...SNOWFLAKE_TABLE_BROWSER]);
-    loadSnowflakeWarehouseCustomers();
   }
 
   function triggerDrillNavigation(statChange) {
@@ -6660,16 +6600,23 @@ function App() {
                       return (
                         <div
                           key={tbl.name}
-                          onMouseLeave={() =>
-                            setTableBrowserRowHoverKey(null)
-                          }
-                        >
-                        <button
-                          type="button"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              loadDemoForWarehouseTable(tbl.name);
+                            }
+                          }}
                           onMouseEnter={() =>
                             setTableBrowserRowHoverKey(rowKey)
                           }
-                          onClick={() => handleDemoTableBrowserRowClick(tbl)}
+                          onMouseLeave={() =>
+                            setTableBrowserRowHoverKey(null)
+                          }
+                          onClick={() =>
+                            loadDemoForWarehouseTable(tbl.name)
+                          }
                           style={{
                             display: "flex",
                             flexWrap: "wrap",
@@ -6698,6 +6645,7 @@ function App() {
                             fontFamily: "inherit",
                             transition:
                               "background 0.15s ease, border-color 0.15s ease",
+                            outline: "none",
                           }}
                         >
                           <div
@@ -6866,48 +6814,6 @@ function App() {
                               ) : null}
                             </div>
                           </div>
-                        </button>
-                        {tableBrowserSamplePromptRow === tbl.name ? (
-                          <div
-                            style={{
-                              marginTop: "6px",
-                              marginLeft: "14px",
-                              padding: "0 4px 4px",
-                              maxWidth: "36rem",
-                            }}
-                          >
-                            <p
-                              style={{
-                                margin: "0 0 8px",
-                                fontSize: "13px",
-                                lineHeight: 1.45,
-                                color: "var(--text)",
-                              }}
-                            >
-                              No snapshot available yet.
-                            </p>
-                            <button
-                              type="button"
-                              className="app-ghost-btn"
-                              onClick={() =>
-                                loadCustomersSampleFromTableBrowser()
-                              }
-                              style={{
-                                padding: "6px 12px",
-                                fontSize: "13px",
-                                fontWeight: 600,
-                                borderRadius: "8px",
-                                border: "1px solid var(--border)",
-                                background: "var(--bg)",
-                                color: "var(--accent)",
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              Click to load sample comparison →
-                            </button>
-                          </div>
-                        ) : null}
                         </div>
                       );
                     })
@@ -7157,22 +7063,30 @@ function App() {
                     tableBrowserFiltered.map((tbl) => {
                       const rowKey = `databricks:${tbl.name}`;
                       const isActive =
-                        databricksWarehouseTableDisplay === tbl.name;
+                        snowflakeWarehouseDataLoaded &&
+                        snowflakeWarehouseTableDisplay === tbl.name;
                       const isHover =
                         tableBrowserRowHoverKey === rowKey && !isActive;
                       return (
                         <div
                           key={tbl.name}
-                          onMouseLeave={() =>
-                            setTableBrowserRowHoverKey(null)
-                          }
-                        >
-                        <button
-                          type="button"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              loadDemoForWarehouseTable(tbl.name);
+                            }
+                          }}
                           onMouseEnter={() =>
                             setTableBrowserRowHoverKey(rowKey)
                           }
-                          onClick={() => handleDemoTableBrowserRowClick(tbl)}
+                          onMouseLeave={() =>
+                            setTableBrowserRowHoverKey(null)
+                          }
+                          onClick={() =>
+                            loadDemoForWarehouseTable(tbl.name)
+                          }
                           style={{
                             display: "flex",
                             flexWrap: "wrap",
@@ -7201,6 +7115,7 @@ function App() {
                             fontFamily: "inherit",
                             transition:
                               "background 0.15s ease, border-color 0.15s ease",
+                            outline: "none",
                           }}
                         >
                           <div
@@ -7369,48 +7284,6 @@ function App() {
                               ) : null}
                             </div>
                           </div>
-                        </button>
-                        {tableBrowserSamplePromptRow === tbl.name ? (
-                          <div
-                            style={{
-                              marginTop: "6px",
-                              marginLeft: "14px",
-                              padding: "0 4px 4px",
-                              maxWidth: "36rem",
-                            }}
-                          >
-                            <p
-                              style={{
-                                margin: "0 0 8px",
-                                fontSize: "13px",
-                                lineHeight: 1.45,
-                                color: "var(--text)",
-                              }}
-                            >
-                              No snapshot available yet.
-                            </p>
-                            <button
-                              type="button"
-                              className="app-ghost-btn"
-                              onClick={() =>
-                                loadCustomersSampleFromTableBrowser()
-                              }
-                              style={{
-                                padding: "6px 12px",
-                                fontSize: "13px",
-                                fontWeight: 600,
-                                borderRadius: "8px",
-                                border: "1px solid var(--border)",
-                                background: "var(--bg)",
-                                color: "var(--accent)",
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              Click to load sample comparison →
-                            </button>
-                          </div>
-                        ) : null}
                         </div>
                       );
                     })
