@@ -2455,6 +2455,58 @@ function SensitivityBadge({ level }) {
   );
 }
 
+function SourcesWarehouseSecurityChecklistCard() {
+  return (
+    <div
+      style={{
+        marginBottom: "16px",
+        padding: "12px 14px 12px 16px",
+        borderRadius: "8px",
+        border: "1px solid var(--border)",
+        borderLeft: "3px solid rgba(34, 197, 94, 0.45)",
+        background: "var(--code-bg)",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "13px",
+          fontWeight: 600,
+          color: "var(--text-h)",
+          marginBottom: "8px",
+          lineHeight: 1.3,
+        }}
+      >
+        How Unlockdb accesses your data
+      </div>
+      <ul
+        style={{
+          margin: 0,
+          paddingLeft: 0,
+          listStyle: "none",
+          fontSize: "13px",
+          lineHeight: 1.45,
+          color: "var(--text)",
+        }}
+      >
+        <li style={{ marginBottom: "4px" }}>
+          ✅ Read-only access — we cannot modify your data
+        </li>
+        <li style={{ marginBottom: "4px" }}>
+          ✅ Credentials never stored by Unlockdb
+        </li>
+        <li style={{ marginBottom: "4px" }}>
+          ✅ Raw data never leaves your warehouse
+        </li>
+        <li style={{ marginBottom: "4px" }}>
+          ✅ Claude AI sees statistics only, not actual values
+        </li>
+        <li>✅ TLS encryption for all connections</li>
+      </ul>
+    </div>
+  );
+}
+
 function App() {
   const [previousData, setPreviousData] = useState([]);
   const [currentData, setCurrentData] = useState([]);
@@ -2523,6 +2575,10 @@ function App() {
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
   const [history, setHistory] = useState([]);
   const [dismissed, setDismissed] = useState(false);
+  const [overviewTrustBannerDismissed, setOverviewTrustBannerDismissed] =
+    useState(false);
+  const [aiAnalysisPrivacyTipVisible, setAiAnalysisPrivacyTipVisible] =
+    useState(false);
   const drillDownRef = useRef(null);
   const [gridSearchQuery, setGridSearchQuery] = useState("");
   const [gridFilterColumnKey, setGridFilterColumnKey] = useState("");
@@ -3393,7 +3449,7 @@ function App() {
     { id: "sources", label: "Sources" },
     { id: "chat", label: "Copilot" },
     { id: "governance", label: "Governance" },
-    { id: "security", label: "Security" },
+    { id: "security", label: "🔒 Security" },
     { id: "settings", label: "Settings" },
     { id: "audit", label: "Audit" },
     {
@@ -3490,9 +3546,29 @@ function App() {
               onClick={() => setActiveTab(tab.id)}
               onMouseEnter={() => setNavHover(tab.id)}
               onMouseLeave={() => setNavHover(null)}
-              style={navTabStyle(activeTab === tab.id, navHover === tab.id)}
+              style={{
+                ...navTabStyle(activeTab === tab.id, navHover === tab.id),
+                ...(tab.id === "security"
+                  ? { position: "relative", paddingRight: "20px" }
+                  : {}),
+              }}
             >
               {tab.label}
+              {tab.id === "security" ? (
+                <span
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    top: "5px",
+                    right: "10px",
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    background: "#22c55e",
+                    boxShadow: "0 0 0 1px var(--bg)",
+                  }}
+                />
+              ) : null}
             </button>
           ))}
         </div>
@@ -3984,6 +4060,57 @@ function App() {
                   </ul>
                 )}
 
+                {!overviewTrustBannerDismissed ? (
+                  <div
+                    style={{
+                      maxWidth: "44rem",
+                      margin: "0 auto 14px",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid rgba(34, 197, 94, 0.2)",
+                      background: "rgba(34, 197, 94, 0.04)",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <p
+                      style={{
+                        flex: 1,
+                        margin: 0,
+                        fontSize: "12px",
+                        lineHeight: 1.45,
+                        color: "rgba(167, 243, 208, 0.88)",
+                        textAlign: "left",
+                      }}
+                    >
+                      🔒 Raw data stays in your warehouse — Claude sees
+                      statistics only · Read-only connection · No data stored by
+                      Unlockdb
+                    </p>
+                    <button
+                      type="button"
+                      aria-label="Dismiss trust notice"
+                      onClick={() => setOverviewTrustBannerDismissed(true)}
+                      style={{
+                        flexShrink: 0,
+                        margin: 0,
+                        padding: "0 4px",
+                        border: "none",
+                        background: "transparent",
+                        color: "var(--text-muted)",
+                        fontSize: "16px",
+                        lineHeight: 1,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : null}
+
                 <h2
                   style={{
                     ...governanceH2Style,
@@ -4064,19 +4191,82 @@ function App() {
                         border: "1px solid var(--accent-border)",
                         background: "var(--accent-bg)",
                         boxShadow: "0 0 12px rgba(124, 58, 237, 0.12)",
+                        overflow: "visible",
+                        position: "relative",
+                        zIndex: 1,
                       }}
                     >
                       <div
                         style={{
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          letterSpacing: "0.08em",
-                          textTransform: "uppercase",
-                          color: "var(--accent)",
+                          position: "relative",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
                           marginBottom: "10px",
+                          overflow: "visible",
                         }}
                       >
-                        🤖 AI Analysis
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            color: "var(--accent)",
+                          }}
+                        >
+                          🤖 AI Analysis
+                        </div>
+                        <span
+                          role="img"
+                          aria-label="Privacy information"
+                          tabIndex={0}
+                          onMouseEnter={() =>
+                            setAiAnalysisPrivacyTipVisible(true)
+                          }
+                          onMouseLeave={() =>
+                            setAiAnalysisPrivacyTipVisible(false)
+                          }
+                          onFocus={() => setAiAnalysisPrivacyTipVisible(true)}
+                          onBlur={() => setAiAnalysisPrivacyTipVisible(false)}
+                          style={{
+                            fontSize: "14px",
+                            lineHeight: 1,
+                            cursor: "help",
+                            userSelect: "none",
+                          }}
+                        >
+                          ℹ️
+                        </span>
+                        {aiAnalysisPrivacyTipVisible ? (
+                          <div
+                            role="tooltip"
+                            style={{
+                              position: "absolute",
+                              left: 0,
+                              bottom: "100%",
+                              marginBottom: "8px",
+                              maxWidth: "280px",
+                              padding: "8px 10px",
+                              fontSize: "12px",
+                              lineHeight: 1.45,
+                              fontWeight: 500,
+                              letterSpacing: "normal",
+                              textTransform: "none",
+                              color: "#ffffff",
+                              background: "#141414",
+                              border: "1px solid var(--border)",
+                              borderRadius: "6px",
+                              boxShadow: "0 4px 14px rgba(0,0,0,0.45)",
+                              zIndex: 50,
+                              textAlign: "left",
+                            }}
+                          >
+                            Claude receives only statistical summaries — null
+                            rates, row counts, and change descriptions. No raw
+                            data values are transmitted.
+                          </div>
+                        ) : null}
                       </div>
                       {typeof autoAnalysis === "string" ? (
                         <p
@@ -6240,54 +6430,63 @@ function App() {
                   color: "var(--text)",
                   marginBottom: "16px",
                   display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  gap: "10px",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  gap: "6px",
                 }}
               >
-                <span>
-                  <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
-                    Source:{" "}
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <span>
+                    <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                      Source:{" "}
+                    </span>
+                    {
+                      DATA_SOURCE_OPTIONS.find((o) => o.id === selectedSource)
+                        ?.label
+                    }
                   </span>
-                  {
-                    DATA_SOURCE_OPTIONS.find((o) => o.id === selectedSource)
-                      ?.label
-                  }
-                </span>
-                {selectedSource === "snowflake" && snowflakeDemoConnected ? (
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                      padding: "4px 10px",
-                      borderRadius: "999px",
-                      border: "1px solid var(--accent-border)",
-                      background: "var(--accent-bg)",
-                      color: "var(--accent)",
-                    }}
-                  >
-                    Connected
-                  </span>
-                ) : selectedSource === "databricks" &&
-                  databricksDemoConnected ? (
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                      padding: "4px 10px",
-                      borderRadius: "999px",
-                      border: "1px solid var(--accent-border)",
-                      background: "var(--accent-bg)",
-                      color: "var(--accent)",
-                    }}
-                  >
-                    Connected
-                  </span>
-                ) : null}
+                  {selectedSource === "snowflake" && snowflakeDemoConnected ? (
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        padding: "4px 10px",
+                        borderRadius: "999px",
+                        border: "1px solid var(--accent-border)",
+                        background: "var(--accent-bg)",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      Connected
+                    </span>
+                  ) : selectedSource === "databricks" &&
+                    databricksDemoConnected ? (
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        padding: "4px 10px",
+                        borderRadius: "999px",
+                        border: "1px solid var(--accent-border)",
+                        background: "var(--accent-bg)",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      Connected
+                    </span>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 
@@ -6399,27 +6598,29 @@ function App() {
             ) : null}
 
             {selectedSource === "snowflake" && !snowflakeDemoConnected ? (
-              <form
-                onSubmit={handleSnowflakeDemoConnect}
-                style={{
-                  padding: "18px 20px",
-                  borderRadius: "10px",
-                  border: "1px solid var(--border)",
-                  background: "var(--social-bg)",
-                  boxSizing: "border-box",
-                  marginBottom: "20px",
-                }}
-              >
-                <h2
+              <>
+                <SourcesWarehouseSecurityChecklistCard />
+                <form
+                  onSubmit={handleSnowflakeDemoConnect}
                   style={{
-                    margin: "0 0 6px",
-                    fontSize: "18px",
-                    fontWeight: 700,
-                    color: "var(--text-h)",
+                    padding: "18px 20px",
+                    borderRadius: "10px",
+                    border: "1px solid var(--border)",
+                    background: "var(--social-bg)",
+                    boxSizing: "border-box",
+                    marginBottom: "20px",
                   }}
                 >
-                  Connect Snowflake
-                </h2>
+                  <h2
+                    style={{
+                      margin: "0 0 6px",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      color: "var(--text-h)",
+                    }}
+                  >
+                    Connect Snowflake
+                  </h2>
                 <p
                   style={{
                     margin: "0 0 16px",
@@ -6537,6 +6738,7 @@ function App() {
                     : "Connect to Snowflake"}
                 </button>
               </form>
+              </>
             ) : null}
 
             {selectedSource === "snowflake" && snowflakeDemoConnected ? (
@@ -6578,6 +6780,16 @@ function App() {
                 >
                   Connected
                 </div>
+                <p
+                  style={{
+                    margin: "0 0 12px",
+                    fontSize: "12px",
+                    lineHeight: 1.45,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  🔒 Read-only · No data stored · Statistics only sent to AI
+                </p>
                 <div
                   style={{
                     fontSize: "13px",
@@ -6884,27 +7096,29 @@ function App() {
             ) : null}
 
             {selectedSource === "databricks" && !databricksDemoConnected ? (
-              <form
-                onSubmit={handleDatabricksDemoConnect}
-                style={{
-                  padding: "18px 20px",
-                  borderRadius: "10px",
-                  border: "1px solid var(--border)",
-                  background: "var(--social-bg)",
-                  boxSizing: "border-box",
-                  marginBottom: "20px",
-                }}
-              >
-                <h2
+              <>
+                <SourcesWarehouseSecurityChecklistCard />
+                <form
+                  onSubmit={handleDatabricksDemoConnect}
                   style={{
-                    margin: "0 0 6px",
-                    fontSize: "18px",
-                    fontWeight: 700,
-                    color: "var(--text-h)",
+                    padding: "18px 20px",
+                    borderRadius: "10px",
+                    border: "1px solid var(--border)",
+                    background: "var(--social-bg)",
+                    boxSizing: "border-box",
+                    marginBottom: "20px",
                   }}
                 >
-                  Connect Databricks
-                </h2>
+                  <h2
+                    style={{
+                      margin: "0 0 6px",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      color: "var(--text-h)",
+                    }}
+                  >
+                    Connect Databricks
+                  </h2>
                 <p
                   style={{
                     margin: "0 0 16px",
@@ -7007,6 +7221,7 @@ function App() {
                     : "Connect to Databricks"}
                 </button>
               </form>
+              </>
             ) : null}
 
             {selectedSource === "databricks" && databricksDemoConnected ? (
@@ -7048,6 +7263,16 @@ function App() {
                 >
                   Connected
                 </div>
+                <p
+                  style={{
+                    margin: "0 0 12px",
+                    fontSize: "12px",
+                    lineHeight: 1.45,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  🔒 Read-only · No data stored · Statistics only sent to AI
+                </p>
                 <div
                   style={{
                     fontSize: "13px",
@@ -9125,6 +9350,17 @@ function App() {
               Run
             </button>
           </form>
+          <p
+            style={{
+              margin: "6px 0 0",
+              fontSize: "11px",
+              lineHeight: 1.35,
+              color: "var(--text-muted)",
+              opacity: 0.85,
+            }}
+          >
+            🔒 Only data statistics are shared with AI — never raw values
+          </p>
           <div
             style={{
               display: "flex",
