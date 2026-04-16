@@ -2526,7 +2526,8 @@ const governanceSectionStyle = {
   maxWidth: "42rem",
   marginLeft: "auto",
   marginRight: "auto",
-  marginBottom: "36px",
+  marginBottom: 0,
+  paddingBottom: "140px",
   textAlign: "left",
 };
 
@@ -2556,9 +2557,9 @@ const securityPageWrapStyle = {
   maxWidth: "700px",
   marginLeft: "auto",
   marginRight: "auto",
-  marginBottom: "36px",
+  marginBottom: 0,
   textAlign: "left",
-  padding: "0 20px",
+  padding: "0 20px 140px",
   boxSizing: "border-box",
 };
 
@@ -2576,6 +2577,7 @@ const overviewHelpSectionStyle = {
   marginRight: "auto",
   marginTop: "40px",
   paddingTop: "32px",
+  paddingBottom: "140px",
   borderTop: "1px solid var(--border)",
   textAlign: "left",
 };
@@ -3873,7 +3875,7 @@ Return ONLY the SQL, no explanation.`;
       <main
         style={{
           flex: 1,
-          padding: "24px 20px calc(48px + 118px)",
+          padding: "24px 20px calc(48px + 140px)",
           maxWidth: "1126px",
           margin: "0 auto",
           width: "100%",
@@ -6780,7 +6782,7 @@ Return ONLY the SQL, no explanation.`;
               maxWidth: "700px",
               margin: "0 auto",
               textAlign: "left",
-              paddingBottom: "8px",
+              paddingBottom: "140px",
             }}
           >
             <header style={{ marginBottom: "40px" }}>
@@ -6937,7 +6939,13 @@ Return ONLY the SQL, no explanation.`;
         )}
 
         {activeTab === "sources" && (
-          <section style={{ maxWidth: "42rem", margin: "0 auto" }}>
+          <section
+            style={{
+              maxWidth: "42rem",
+              margin: "0 auto",
+              paddingBottom: "160px",
+            }}
+          >
             <h1
               style={{
                 fontSize: "28px",
@@ -8731,7 +8739,7 @@ Return ONLY the SQL, no explanation.`;
         )}
 
         {activeTab === "governance" && (
-          <section style={{ ...governanceSectionStyle, marginBottom: 0 }}>
+          <section style={governanceSectionStyle}>
             <h2 style={governanceH2Style}>Governance</h2>
             <p style={governanceMutedStyle}>
               Demo only. No real authentication or permission enforcement.
@@ -8815,7 +8823,7 @@ Return ONLY the SQL, no explanation.`;
         )}
 
         {activeTab === "security" && (
-          <section style={{ ...securityPageWrapStyle, marginBottom: 0 }}>
+          <section style={securityPageWrapStyle}>
             <h1
               style={{
                 fontSize: "clamp(26px, 4vw, 32px)",
@@ -9329,7 +9337,7 @@ Return ONLY the SQL, no explanation.`;
         )}
 
         {activeTab === "settings" && (
-          <section style={{ ...governanceSectionStyle, marginBottom: 0 }}>
+          <section style={governanceSectionStyle}>
             <h2 style={governanceH2Style}>Alert &amp; monitoring settings</h2>
             <p style={governanceMutedStyle}>
               Configure when Unlockdb flags changes as risks. Reducing noise
@@ -9767,7 +9775,7 @@ Return ONLY the SQL, no explanation.`;
         )}
 
         {activeTab === "audit" && (
-          <section style={{ ...governanceSectionStyle, marginBottom: 0 }}>
+          <section style={governanceSectionStyle}>
             <h2 style={governanceH2Style}>Audit Log</h2>
             <p style={governanceMutedStyle}>
               Demo activity only — not connected to a real audit store.
@@ -9827,6 +9835,7 @@ Return ONLY the SQL, no explanation.`;
               maxWidth: "36rem",
               margin: "0 auto",
               textAlign: "left",
+              paddingBottom: "140px",
             }}
           >
             <h2
@@ -9944,7 +9953,13 @@ Return ONLY the SQL, no explanation.`;
 
         {activeTab === "account" &&
           (demoLoggedIn ? (
-            <section style={{ maxWidth: "28rem", margin: "0 auto" }}>
+            <section
+              style={{
+                maxWidth: "28rem",
+                margin: "0 auto",
+                paddingBottom: "140px",
+              }}
+            >
               <h2
                 style={{
                   fontSize: "20px",
@@ -10055,7 +10070,13 @@ Return ONLY the SQL, no explanation.`;
               </div>
             </section>
           ) : (
-            <section style={{ maxWidth: "420px", margin: "0 auto" }}>
+            <section
+              style={{
+                maxWidth: "420px",
+                margin: "0 auto",
+                paddingBottom: "140px",
+              }}
+            >
               <h2
                 style={{
                   fontSize: "20px",
