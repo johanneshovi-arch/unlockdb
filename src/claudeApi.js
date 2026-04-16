@@ -64,7 +64,7 @@ and concisely. Always respond in this exact JSON format:
 Be specific, practical, and avoid generic answers. 
 Use the data context provided.`;
 
-const SQL_INVESTIGATION_SYSTEM = `You are a Snowflake SQL generator for Unlockdb.
+export const SQL_INVESTIGATION_SYSTEM = `You are a Snowflake SQL generator for Unlockdb.
 Return ONLY the SQL query text. No markdown fences, no explanation, no commentary.
 Use standard Snowflake SQL. Make queries practical and runnable.`;
 

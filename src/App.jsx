@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import UnlockdbLogo from "./UnlockdbLogo.jsx";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
-import { askClaude, generateInvestigationSql } from "./claudeApi.js";
+import { askClaude, SQL_INVESTIGATION_SYSTEM } from "./claudeApi.js";
 
 let lastSnapshotKeyForHistory = "";
 
@@ -3468,25 +3468,33 @@ function App() {
   }
 
   async function handleGetInvestigationSql(sc) {
-    const tableName =
+    const tableForPrompt =
       activeSourceName === "snowflake"
-        ? snowflakeWarehouseTableDisplay ?? "customers"
+        ? "customers"
         : activeSourceName === "databricks"
           ? databricksWarehouseTableDisplay ?? "events"
-          : "dataset";
-    const affectedCols = sc.columnKey
-      ? [sc.columnKey]
-      : columns.map((c) => c.key);
-    const prompt = `Generate a SQL query for Snowflake to investigate this data issue: ${sc.changeText}
-Table: ${tableName}
-Columns: ${affectedCols.join(", ")}
-
-Return ONLY the SQL query, no explanation.
-Make it practical and runnable.`;
+          : "customers";
+    const prompt = `Generate a Snowflake SQL query to investigate this issue: ${sc.changeText}
+Table: ${tableForPrompt}
+Return ONLY the SQL, no explanation.`;
     setSqlInvestigateLoadingId(sc.id);
     try {
-      const sql = await generateInvestigationSql(prompt);
-      setSqlInvestigateById((prev) => ({ ...prev, [sc.id]: sql }));
+      const raw = await askClaude(prompt, "", {
+        mode: "chat",
+        systemPrompt: SQL_INVESTIGATION_SYSTEM,
+        maxTokens: 1200,
+        plainPrompt: true,
+      });
+      let out = String(raw ?? "").trim();
+      if (!out) {
+        out = "-- Set VITE_ANTHROPIC_API_KEY to generate SQL from Claude.";
+      } else {
+        const fenced = /^```(?:sql)?\s*\r?\n?([\s\S]*?)\r?\n?```\s*$/i.exec(
+          out
+        );
+        if (fenced) out = fenced[1].trim();
+      }
+      setSqlInvestigateById((prev) => ({ ...prev, [sc.id]: out }));
     } catch (e) {
       console.error(e);
       setSqlInvestigateById((prev) => ({
@@ -4441,7 +4449,7 @@ Make it practical and runnable.`;
                               key={`sch-${idx}`}
                               style={{ color: "#4ade80" }}
                             >
-                              + {ch.column} ({ch.dataType})
+                              + {ch.column} added
                             </div>
                           );
                         }
@@ -4451,7 +4459,7 @@ Make it practical and runnable.`;
                               key={`sch-${idx}`}
                               style={{ color: "#f87171" }}
                             >
-                              - {ch.column} ({ch.dataType})
+                              - {ch.column} dropped
                             </div>
                           );
                         }
@@ -5002,36 +5010,6 @@ Make it practical and runnable.`;
                               flexWrap: "wrap",
                             }}
                           >
-                            {sc.tier === "HIGH" ? (
-                              <button
-                                type="button"
-                                onClick={() => handleGetInvestigationSql(sc)}
-                                disabled={sqlInvestigateLoadingId === sc.id}
-                                className="app-ghost-btn"
-                                style={{
-                                  padding: "8px 14px",
-                                  borderRadius: "8px",
-                                  border: "1px solid var(--border)",
-                                  background: "var(--social-bg)",
-                                  color: "var(--text-h)",
-                                  fontWeight: 600,
-                                  fontSize: "13px",
-                                  fontFamily: "inherit",
-                                  cursor:
-                                    sqlInvestigateLoadingId === sc.id
-                                      ? "wait"
-                                      : "pointer",
-                                  opacity:
-                                    sqlInvestigateLoadingId === sc.id
-                                      ? 0.75
-                                      : 1,
-                                }}
-                              >
-                                {sqlInvestigateLoadingId === sc.id
-                                  ? "…"
-                                  : "📋 Get SQL"}
-                              </button>
-                            ) : null}
                             <button
                               type="button"
                               onClick={() => handleOpenAiExplainPanel(sc)}
@@ -5052,6 +5030,32 @@ Make it practical and runnable.`;
                             </button>
                             <button
                               type="button"
+                              onClick={() => handleGetInvestigationSql(sc)}
+                              disabled={sqlInvestigateLoadingId === sc.id}
+                              className="app-ghost-btn"
+                              style={{
+                                padding: "8px 14px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                background: "var(--social-bg)",
+                                color: "var(--text-h)",
+                                fontWeight: 600,
+                                fontSize: "13px",
+                                fontFamily: "inherit",
+                                cursor:
+                                  sqlInvestigateLoadingId === sc.id
+                                    ? "wait"
+                                    : "pointer",
+                                opacity:
+                                  sqlInvestigateLoadingId === sc.id ? 0.75 : 1,
+                              }}
+                            >
+                              {sqlInvestigateLoadingId === sc.id
+                                ? "…"
+                                : "📋 Get SQL"}
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleMarkChangeAsKnown(sc)}
                               className="app-ghost-btn"
                               style={{
@@ -5069,9 +5073,8 @@ Make it practical and runnable.`;
                               Mark as known
                             </button>
                           </div>
-                          {sc.tier === "HIGH" &&
-                          (sqlInvestigateLoadingId === sc.id ||
-                            sqlInvestigateById[sc.id]) ? (
+                          {sqlInvestigateLoadingId === sc.id ||
+                          sqlInvestigateById[sc.id] ? (
                             <div
                               style={{
                                 padding: "0 16px 16px",
@@ -7459,7 +7462,7 @@ Make it practical and runnable.`;
                       fontFamily: "inherit",
                     }}
                   >
-                    List view
+                    [List]
                   </button>
                   <button
                     type="button"
@@ -7484,7 +7487,7 @@ Make it practical and runnable.`;
                       fontFamily: "inherit",
                     }}
                   >
-                    Heatmap
+                    [Heatmap]
                   </button>
                 </div>
 
@@ -8160,7 +8163,7 @@ Make it practical and runnable.`;
                       fontFamily: "inherit",
                     }}
                   >
-                    List view
+                    [List]
                   </button>
                   <button
                     type="button"
@@ -8185,7 +8188,7 @@ Make it practical and runnable.`;
                       fontFamily: "inherit",
                     }}
                   >
-                    Heatmap
+                    [Heatmap]
                   </button>
                 </div>
 
