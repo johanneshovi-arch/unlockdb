@@ -2474,6 +2474,7 @@ function App() {
     useState(null);
   const [databricksWarehouseTableDisplay, setDatabricksWarehouseTableDisplay] =
     useState(null);
+  const [activeSourceName, setActiveSourceName] = useState(null);
   const [tableBrowserSource, setTableBrowserSource] = useState(null);
   const [tableBrowserList, setTableBrowserList] = useState([]);
   const [tableSearchQuery, setTableSearchQuery] = useState("");
@@ -2994,6 +2995,7 @@ function App() {
       resetSnowflakeWarehouseBrowserState();
       resetTableBrowserState();
       setDatabricksWarehouseTableDisplay(null);
+      setActiveSourceName("csv");
       setPreviousData(rows);
       setPreviousFileName(file.name);
       input.value = "";
@@ -3010,6 +3012,7 @@ function App() {
       resetSnowflakeWarehouseBrowserState();
       resetTableBrowserState();
       setDatabricksWarehouseTableDisplay(null);
+      setActiveSourceName("csv");
       setCurrentData(rows);
       setCurrentFileName(file.name);
       input.value = "";
@@ -3023,6 +3026,7 @@ function App() {
     setSnowflakeWarehouseTableDisplay(null);
     setDatabricksWarehouseTableDisplay(null);
     resetTableBrowserState();
+    setActiveSourceName("csv");
     setPreviousData(SAMPLE_PREVIOUS_DATA);
     setCurrentData(SAMPLE_CURRENT_DATA);
     setPreviousFileName("sample-previous.csv");
@@ -3074,6 +3078,7 @@ function App() {
       setDatabricksDemoConnected(false);
       resetSnowflakeWarehouseBrowserState();
       setDatabricksWarehouseTableDisplay(null);
+      setActiveSourceName(null);
       setPreviousData([]);
       setCurrentData([]);
       setPreviousFileName("Snowflake · select a table");
@@ -3091,14 +3096,26 @@ function App() {
     setActiveTab("sources");
   }
 
-  function loadDemoForWarehouseTable(tableName) {
+  function loadDemoForWarehouseTable(tableName, warehouseSource) {
     setTableBrowserAiNameTipId(null);
-    setSnowflakeDemoConnected(true);
-    setDatabricksDemoConnected(false);
-    setDatabricksWarehouseTableDisplay(null);
-    setSelectedSource("snowflake");
-    setSnowflakeWarehouseDataLoaded(true);
-    setSnowflakeWarehouseTableDisplay(tableName);
+    const isSnowflake = warehouseSource === "snowflake";
+    if (isSnowflake) {
+      setSnowflakeDemoConnected(true);
+      setDatabricksDemoConnected(false);
+      setDatabricksWarehouseTableDisplay(null);
+      setSelectedSource("snowflake");
+      setSnowflakeWarehouseDataLoaded(true);
+      setSnowflakeWarehouseTableDisplay(tableName);
+      setActiveSourceName("snowflake");
+    } else {
+      setDatabricksDemoConnected(true);
+      setSnowflakeDemoConnected(false);
+      setSnowflakeWarehouseDataLoaded(false);
+      setSnowflakeWarehouseTableDisplay(null);
+      setDatabricksWarehouseTableDisplay(tableName);
+      setSelectedSource("databricks");
+      setActiveSourceName("databricks");
+    }
     if (tableName === "events") {
       setPreviousData(DATABRICKS_DEMO_PREVIOUS);
       setCurrentData(DATABRICKS_DEMO_CURRENT);
@@ -3106,13 +3123,15 @@ function App() {
       setPreviousData(SNOWFLAKE_DEMO_PREVIOUS);
       setCurrentData(SNOWFLAKE_DEMO_CURRENT);
     }
-    setPreviousFileName(`Snowflake · ${tableName} (baseline)`);
-    setCurrentFileName(`Snowflake · ${tableName} (current)`);
+    const labelPrefix = isSnowflake ? "Snowflake" : "Databricks";
+    setPreviousFileName(`${labelPrefix} · ${tableName} (baseline)`);
+    setCurrentFileName(`${labelPrefix} · ${tableName} (current)`);
     setActiveTab("overview");
   }
 
   function loadSnowflakeWarehouseCleanCustomersNoDiff() {
     const snapshot = SNOWFLAKE_DEMO_CURRENT.map((row) => ({ ...row }));
+    setActiveSourceName("snowflake");
     setSnowflakeWarehouseDataLoaded(true);
     setSnowflakeWarehouseTableDisplay("customers");
     setPreviousData(snapshot.map((row) => ({ ...row })));
@@ -3131,6 +3150,7 @@ function App() {
       setSnowflakeDemoConnected(false);
       resetSnowflakeWarehouseBrowserState();
       setDatabricksWarehouseTableDisplay(null);
+      setActiveSourceName(null);
       setPreviousData([]);
       setCurrentData([]);
       setPreviousFileName("Databricks · select a table");
@@ -3653,7 +3673,7 @@ function App() {
               )
             ) : (
               <>
-                {snowflakeDemoConnected && snowflakeWarehouseDataLoaded ? (
+                {activeSourceName === "snowflake" ? (
                   <div
                     style={{
                       maxWidth: "44rem",
@@ -3710,8 +3730,7 @@ function App() {
                       </div>
                     </div>
                   </div>
-                ) : databricksDemoConnected &&
-                  databricksWarehouseTableDisplay ? (
+                ) : activeSourceName === "databricks" ? (
                   <div
                     style={{
                       maxWidth: "44rem",
@@ -3735,7 +3754,7 @@ function App() {
                         ·
                       </span>
                       <span style={{ color: "var(--text)" }}>Table: </span>
-                      {databricksWarehouseTableDisplay}
+                      {databricksWarehouseTableDisplay ?? "—"}
                     </div>
                     <div
                       style={{
@@ -3764,8 +3783,30 @@ function App() {
                         <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
                           Table:{" "}
                         </span>
-                        {databricksWarehouseTableDisplay}
+                        {databricksWarehouseTableDisplay ?? "—"}
                       </div>
+                    </div>
+                  </div>
+                ) : activeSourceName === "csv" ? (
+                  <div
+                    style={{
+                      maxWidth: "44rem",
+                      margin: "0 auto 16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "var(--text-h)",
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <span style={{ color: "var(--text)" }}>Source: </span>
+                      CSV upload
                     </div>
                   </div>
                 ) : null}
@@ -6593,7 +6634,7 @@ function App() {
                     tableBrowserFiltered.map((tbl) => {
                       const rowKey = `snowflake:${tbl.name}`;
                       const isActive =
-                        snowflakeWarehouseDataLoaded &&
+                        activeSourceName === "snowflake" &&
                         snowflakeWarehouseTableDisplay === tbl.name;
                       const isHover =
                         tableBrowserRowHoverKey === rowKey && !isActive;
@@ -6605,7 +6646,7 @@ function App() {
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              loadDemoForWarehouseTable(tbl.name);
+                              loadDemoForWarehouseTable(tbl.name, "snowflake");
                             }
                           }}
                           onMouseEnter={() =>
@@ -6615,7 +6656,7 @@ function App() {
                             setTableBrowserRowHoverKey(null)
                           }
                           onClick={() =>
-                            loadDemoForWarehouseTable(tbl.name)
+                            loadDemoForWarehouseTable(tbl.name, "snowflake")
                           }
                           style={{
                             display: "flex",
@@ -7063,8 +7104,8 @@ function App() {
                     tableBrowserFiltered.map((tbl) => {
                       const rowKey = `databricks:${tbl.name}`;
                       const isActive =
-                        snowflakeWarehouseDataLoaded &&
-                        snowflakeWarehouseTableDisplay === tbl.name;
+                        activeSourceName === "databricks" &&
+                        databricksWarehouseTableDisplay === tbl.name;
                       const isHover =
                         tableBrowserRowHoverKey === rowKey && !isActive;
                       return (
@@ -7075,7 +7116,7 @@ function App() {
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              loadDemoForWarehouseTable(tbl.name);
+                              loadDemoForWarehouseTable(tbl.name, "databricks");
                             }
                           }}
                           onMouseEnter={() =>
@@ -7085,7 +7126,7 @@ function App() {
                             setTableBrowserRowHoverKey(null)
                           }
                           onClick={() =>
-                            loadDemoForWarehouseTable(tbl.name)
+                            loadDemoForWarehouseTable(tbl.name, "databricks")
                           }
                           style={{
                             display: "flex",
