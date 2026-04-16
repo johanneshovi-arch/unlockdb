@@ -1,8 +1,37 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import UnlockdbLogo from "./UnlockdbLogo.jsx";
 import { Line, LineChart, ResponsiveContainer } from "recharts";
 import { askClaude, SQL_INVESTIGATION_SYSTEM } from "./claudeApi.js";
+
+/** Tab ids ↔ URL paths for react-router */
+const TAB_TO_PATH = {
+  overview: "/",
+  about: "/how-it-works",
+  sources: "/sources",
+  chat: "/copilot",
+  governance: "/governance",
+  security: "/security",
+  settings: "/settings",
+  audit: "/audit",
+  account: "/account",
+};
+
+const PATH_TO_TAB = Object.fromEntries(
+  Object.entries(TAB_TO_PATH).map(([tabId, path]) => [path, tabId])
+);
+
+function normalizePathname(pathname) {
+  if (!pathname || pathname === "/") return "/";
+  const trimmed = pathname.replace(/\/+$/, "");
+  return trimmed === "" ? "/" : trimmed;
+}
+
+function tabIdFromPathname(pathname) {
+  const n = normalizePathname(pathname);
+  return PATH_TO_TAB[n] ?? null;
+}
 
 let lastSnapshotKeyForHistory = "";
 
@@ -1762,7 +1791,7 @@ function tryHandleCopilotCommand(text, deps) {
     statChanges,
     riskFindings,
     overviewHasData,
-    setActiveTab,
+    navigateToTab,
     setChangeFeedFilter,
     setSelectedChange,
     setSelectedColumn,
@@ -1779,12 +1808,12 @@ function tryHandleCopilotCommand(text, deps) {
   ) {
     if (selectedSource !== "snowflake") selectDataSource("snowflake");
     runSnowflakeDemoDataset();
-    setActiveTab("sources");
+    navigateToTab("sources");
     return "Snowflake demo connected. Open Sources and pick a table in the browser (e.g. customers or events for a full comparison).";
   }
 
   if (/\bconnect snowflake\b/.test(q)) {
-    setActiveTab("sources");
+    navigateToTab("sources");
     if (selectedSource !== "snowflake") selectDataSource("snowflake");
     window.setTimeout(() => {
       document.getElementById("sf-account")?.focus();
@@ -1793,12 +1822,12 @@ function tryHandleCopilotCommand(text, deps) {
   }
 
   if (/\b(go to|open)\s+overview\b/.test(q) || /^\s*overview\s*$/.test(text)) {
-    setActiveTab("overview");
+    navigateToTab("overview");
     return "Switched to Overview.";
   }
 
   if (/\b(go to|open)\s+sources\b/.test(q) || /^\s*sources\s*$/.test(text)) {
-    setActiveTab("sources");
+    navigateToTab("sources");
     return "Switched to Sources.";
   }
 
@@ -1807,7 +1836,7 @@ function tryHandleCopilotCommand(text, deps) {
     /\bcopilot history\b/.test(q) ||
     /\bopen copilot\b/.test(q)
   ) {
-    setActiveTab("chat");
+    navigateToTab("chat");
     return "Opened Copilot history.";
   }
 
@@ -1817,7 +1846,7 @@ function tryHandleCopilotCommand(text, deps) {
     )
   ) {
     setChangeFeedFilter("high-risk");
-    setActiveTab("overview");
+    navigateToTab("overview");
     return "Recent changes now shows HIGH risk only.";
   }
 
@@ -1827,13 +1856,13 @@ function tryHandleCopilotCommand(text, deps) {
     )
   ) {
     setChangeFeedFilter("all");
-    setActiveTab("overview");
+    navigateToTab("overview");
     return "Showing all changes again.";
   }
 
   if (/\bcompare\b/.test(q)) {
     setChangeFeedFilter("all");
-    setActiveTab("overview");
+    navigateToTab("overview");
     if (!overviewHasData) {
       return "Opened Overview. Load baseline + current in Sources (CSV or Snowflake demo) to compare—e.g. customers today vs yesterday as two snapshots.";
     }
@@ -1851,7 +1880,7 @@ function tryHandleCopilotCommand(text, deps) {
     const colName = explainMatch[1].trim();
     const key = resolveColumnKeyForCopilot(columns, colName);
     setSelectedColumn(key);
-    setActiveTab("overview");
+    navigateToTab("overview");
     if (!key) {
       return `Could not resolve column "${colName}" in the current schema.`;
     }
@@ -1880,7 +1909,7 @@ function tryHandleCopilotCommand(text, deps) {
     const key = resolveColumnKeyForCopilot(columns, colToken);
     setSelectedColumn(key);
     if (!key) {
-      setActiveTab("overview");
+      navigateToTab("overview");
       return `Unknown column for missing values: "${colToken}".`;
     }
     const sc =
@@ -1889,12 +1918,12 @@ function tryHandleCopilotCommand(text, deps) {
       ) ||
       statChanges.find((s) => s.columnKey === key && s.tier === "HIGH");
     if (!sc) {
-      setActiveTab("overview");
+      navigateToTab("overview");
       return `No null-increase drill-down for "${colToken}" in this comparison.`;
     }
     setSelectedChange(sc);
     setFeedFocusColumnKey(key);
-    setActiveTab("overview");
+    navigateToTab("overview");
     triggerDrillNavigation(sc);
     return `Opened drill-down for rows with missing ${colToken}.`;
   }
@@ -2678,12 +2707,23 @@ function SourcesWarehouseSecurityChecklistCard() {
 }
 
 function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pathTab = tabIdFromPathname(location.pathname);
+
+  const navigateToTab = useCallback(
+    (tabId) => {
+      const p = TAB_TO_PATH[tabId];
+      if (p != null) navigate(p);
+    },
+    [navigate]
+  );
+
   const [previousData, setPreviousData] = useState([]);
   const [currentData, setCurrentData] = useState([]);
   const [previousFileName, setPreviousFileName] = useState("Not connected");
   const [currentFileName, setCurrentFileName] = useState("Not connected");
   const [messages, setMessages] = useState([]);
-  const [activeTab, setActiveTab] = useState("overview");
   const [navHover, setNavHover] = useState(null);
   const [demoLoggedIn, setDemoLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState("login");
@@ -3037,11 +3077,12 @@ function App() {
   }, [previousFileName, currentFileName, previousData.length, currentData.length]);
 
   useEffect(() => {
-    if (activeTab !== "overview") {
+    if (pathTab === null) return;
+    if (pathTab !== "overview") {
       setColumnDetailKey(null);
       setExplainStatChange(null);
     }
-  }, [activeTab]);
+  }, [pathTab]);
 
   useEffect(() => {
     if (!columnDetailKey) return;
@@ -3364,7 +3405,7 @@ function App() {
   function handleSnowflakeDemoConnect(e) {
     e.preventDefault();
     runSnowflakeDemoDataset();
-    setActiveTab("sources");
+    navigateToTab("sources");
   }
 
   function loadDemoForWarehouseTable(tableName, warehouseSource) {
@@ -3397,7 +3438,7 @@ function App() {
     const labelPrefix = isSnowflake ? "Snowflake" : "Databricks";
     setPreviousFileName(`${labelPrefix} · ${tableName} (baseline)`);
     setCurrentFileName(`${labelPrefix} · ${tableName} (current)`);
-    setActiveTab("overview");
+    navigateToTab("overview");
   }
 
   function loadSnowflakeWarehouseCleanCustomersNoDiff() {
@@ -3409,7 +3450,7 @@ function App() {
     setCurrentData(snapshot.map((row) => ({ ...row })));
     setPreviousFileName("Snowflake · customers (baseline)");
     setCurrentFileName("Snowflake · customers (current)");
-    setActiveTab("overview");
+    navigateToTab("overview");
   }
 
   function runDatabricksDemoDataset() {
@@ -3436,7 +3477,7 @@ function App() {
   function handleDatabricksDemoConnect(e) {
     e.preventDefault();
     runDatabricksDemoDataset();
-    setActiveTab("sources");
+    navigateToTab("sources");
   }
 
   function triggerDrillNavigation(statChange) {
@@ -3531,7 +3572,7 @@ Return ONLY the SQL, no explanation.`;
       statChanges,
       riskFindings,
       overviewHasData,
-      setActiveTab,
+      navigateToTab,
       setChangeFeedFilter,
       setSelectedChange,
       setSelectedColumn,
@@ -3709,6 +3750,11 @@ Return ONLY the SQL, no explanation.`;
     },
   ];
 
+  if (pathTab === null) {
+    return <Navigate to="/" replace />;
+  }
+  const activeTab = pathTab;
+
   return (
     <div
       style={{
@@ -3741,7 +3787,7 @@ Return ONLY the SQL, no explanation.`;
         >
           <button
             type="button"
-            onClick={() => setActiveTab("overview")}
+            onClick={() => navigateToTab("overview")}
             style={{
               display: "flex",
               alignItems: "center",
@@ -3794,7 +3840,7 @@ Return ONLY the SQL, no explanation.`;
               id={tab.id}
               type="button"
               aria-current={activeTab === tab.id ? "page" : undefined}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => navigateToTab(tab.id)}
               onMouseEnter={() => setNavHover(tab.id)}
               onMouseLeave={() => setNavHover(null)}
               style={{
@@ -3916,7 +3962,7 @@ Return ONLY the SQL, no explanation.`;
                 connections under{" "}
                 <button
                   type="button"
-                  onClick={() => setActiveTab("sources")}
+                  onClick={() => navigateToTab("sources")}
                   style={{
                     padding: 0,
                     border: "none",
@@ -3962,7 +4008,7 @@ Return ONLY the SQL, no explanation.`;
                   <button
                     type="button"
                     className="app-primary-btn"
-                    onClick={() => setActiveTab("sources")}
+                    onClick={() => navigateToTab("sources")}
                     style={{
                       padding: "10px 22px",
                       borderRadius: "8px",
@@ -3999,7 +4045,7 @@ Return ONLY the SQL, no explanation.`;
                     from{" "}
                     <button
                       type="button"
-                      onClick={() => setActiveTab("sources")}
+                      onClick={() => navigateToTab("sources")}
                       style={{
                         padding: 0,
                         border: "none",
@@ -5179,7 +5225,7 @@ Return ONLY the SQL, no explanation.`;
                     <button
                       type="button"
                       className="app-ghost-btn"
-                      onClick={() => setActiveTab("settings")}
+                      onClick={() => navigateToTab("settings")}
                       style={{
                         padding: 0,
                         margin: 0,
@@ -6649,7 +6695,7 @@ Return ONLY the SQL, no explanation.`;
                   <strong>current</strong> snapshot under{" "}
                   <button
                     type="button"
-                    onClick={() => setActiveTab("sources")}
+                    onClick={() => navigateToTab("sources")}
                     style={{
                       padding: 0,
                       border: "none",
