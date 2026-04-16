@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import UnlockdbLogo from "./UnlockdbLogo.jsx";
-import { askClaude } from "./claudeApi.js";
+import { Line, LineChart, ResponsiveContainer } from "recharts";
+import { askClaude, generateInvestigationSql } from "./claudeApi.js";
 
 let lastSnapshotKeyForHistory = "";
 
@@ -80,6 +81,158 @@ const SNOWFLAKE_DEMO_CURRENT = [
     mrr: "0",
   },
 ];
+
+const SNOWFLAKE_DEMO_PREVIOUS_SCHEMA = {
+  customers: [
+    { name: "customer_id", type: "VARCHAR", nullable: false },
+    { name: "email", type: "VARCHAR", nullable: true },
+    { name: "country", type: "VARCHAR", nullable: true },
+    { name: "plan_tier", type: "VARCHAR", nullable: true },
+    { name: "mrr", type: "NUMBER", nullable: true },
+    { name: "fax_number", type: "VARCHAR", nullable: true },
+  ],
+};
+
+const SNOWFLAKE_DEMO_CURRENT_SCHEMA = {
+  customers: [
+    { name: "customer_id", type: "VARCHAR", nullable: false },
+    { name: "email", type: "VARCHAR", nullable: true },
+    { name: "country", type: "VARCHAR", nullable: true },
+    { name: "plan_tier", type: "VARCHAR", nullable: true },
+    { name: "mrr", type: "NUMBER", nullable: true },
+    { name: "phone_number", type: "VARCHAR", nullable: true },
+    { name: "created_at", type: "TIMESTAMP", nullable: true },
+  ],
+};
+
+const DEMO_TABLES_MONITORED = 20;
+
+function detectSchemaChanges(prevSchema, currSchema) {
+  if (!Array.isArray(prevSchema) || !Array.isArray(currSchema)) return [];
+  const prevMap = new Map(prevSchema.map((c) => [c.name, c]));
+  const currMap = new Map(currSchema.map((c) => [c.name, c]));
+  const out = [];
+  for (const [name, curr] of currMap) {
+    if (!prevMap.has(name)) {
+      out.push({ type: "added", column: name, dataType: curr.type });
+    }
+  }
+  for (const [name, prev] of prevMap) {
+    if (!currMap.has(name)) {
+      out.push({ type: "dropped", column: name, dataType: prev.type });
+    }
+  }
+  for (const [name, prev] of prevMap) {
+    const curr = currMap.get(name);
+    if (!curr) continue;
+    if (prev.type !== curr.type) {
+      out.push({
+        type: "type_change",
+        column: name,
+        previousType: prev.type,
+        newType: curr.type,
+      });
+    }
+    if (Boolean(prev.nullable) !== Boolean(curr.nullable)) {
+      out.push({
+        type: "nullability_change",
+        column: name,
+        previousNullable: prev.nullable,
+        newNullable: curr.nullable,
+      });
+    }
+  }
+  return out;
+}
+
+function sparklineDataFromSeries(values) {
+  return values.map((v, i) => ({ i, v }));
+}
+
+function insightSparklineSeries(insightKey, riskFindings) {
+  const rf = riskFindings.find((r) => r.id === insightKey);
+  if (rf?.severity === "HIGH") {
+    return sparklineDataFromSeries([0, 0, 0, 1, 2, 5, 20]);
+  }
+  if (rf?.severity === "MEDIUM") {
+    return sparklineDataFromSeries([3, 3, 4, 3, 5, 4, 6]);
+  }
+  return sparklineDataFromSeries([0, 0, 0, 0, 0, 1, 0]);
+}
+
+function insightSparklineColor(insightKey, riskFindings) {
+  const rf = riskFindings.find((r) => r.id === insightKey);
+  if (rf?.severity === "HIGH") return "#ef4444";
+  if (rf?.severity === "MEDIUM") return "#f59e0b";
+  return "#22c55e";
+}
+
+function tableBrowserSparklineSeries(tbl) {
+  if (tbl.riskLevel === "high") {
+    return sparklineDataFromSeries([0, 0, 0, 1, 2, 5, 20]);
+  }
+  if (tbl.riskLevel === "medium" || tbl.status === "changes") {
+    return sparklineDataFromSeries([3, 3, 4, 3, 5, 4, 6]);
+  }
+  if (tbl.riskLevel === "low") {
+    return sparklineDataFromSeries([3, 4, 3, 4, 5, 4, 5]);
+  }
+  return sparklineDataFromSeries([0, 0, 0, 0, 0, 1, 0]);
+}
+
+function tableBrowserSparklineColor(tbl) {
+  if (tbl.riskLevel === "high") return "#ef4444";
+  if (tbl.riskLevel === "medium" || tbl.status === "changes") {
+    return "#f59e0b";
+  }
+  if (tbl.riskLevel === "low") return "#f59e0b";
+  return "#22c55e";
+}
+
+function heatmapNotMonitored(tbl) {
+  return (
+    Boolean(tbl.schema?.toLowerCase().includes(".hr")) ||
+    /\b(temp_|LEGACY|BACKUP|SANDBOX)\b/i.test(String(tbl.name ?? ""))
+  );
+}
+
+function heatmapCellBackground(tbl) {
+  if (heatmapNotMonitored(tbl)) {
+    return "#333333";
+  }
+  if (tbl.riskLevel === "high" || tbl.status === "issues") {
+    return "rgba(239, 68, 68, 0.35)";
+  }
+  if (
+    tbl.riskLevel === "medium" ||
+    tbl.status === "changes" ||
+    (tbl.changeCount ?? 0) > 0
+  ) {
+    return "rgba(245, 158, 11, 0.35)";
+  }
+  if (tbl.riskLevel === "none" || tbl.status === "ok") {
+    return "rgba(34, 197, 94, 0.28)";
+  }
+  return "#333333";
+}
+
+function highlightSqlForDisplay(sql) {
+  const s = String(sql ?? "");
+  const parts = [];
+  let last = 0;
+  let m;
+  const re = /\b(ORDER\s+BY|IS\s+NULL|SELECT|FROM|WHERE|AND|OR|LIMIT)\b/gi;
+  while ((m = re.exec(s)) !== null) {
+    if (m.index > last) {
+      parts.push({ k: "t", t: s.slice(last, m.index) });
+    }
+    parts.push({ k: "kw", t: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) parts.push({ k: "t", t: s.slice(last) });
+  if (parts.length === 0) parts.push({ k: "t", t: s });
+  return parts;
+}
 
 const DATABRICKS_DEMO_PREVIOUS = [
   {
@@ -1749,9 +1902,22 @@ function tryHandleCopilotCommand(text, deps) {
   return null;
 }
 
-function analyzeDatasetDiff(previousData, currentData, columns) {
+function analyzeDatasetDiff(
+  previousData,
+  currentData,
+  columns,
+  schemaColumnPair = null
+) {
   const summaryBullets = [];
   const riskFindings = [];
+
+  let schemaChanges = [];
+  if (schemaColumnPair?.previous && schemaColumnPair?.current) {
+    schemaChanges = detectSchemaChanges(
+      schemaColumnPair.previous,
+      schemaColumnPair.current
+    );
+  }
 
   if (currentData.length === 0 || columns.length === 0) {
     return {
@@ -1759,6 +1925,7 @@ function analyzeDatasetDiff(previousData, currentData, columns) {
         "Upload a current CSV (with a header and at least one row) to build the grid and run comparison.",
       summaryBullets: [],
       riskFindings: [],
+      schemaChanges,
     };
   }
 
@@ -1768,6 +1935,7 @@ function analyzeDatasetDiff(previousData, currentData, columns) {
         "Upload a previous CSV as baseline, or use the sample pair, to compare null rates, distinct counts, value churn, and risks.",
       summaryBullets: [],
       riskFindings: [],
+      schemaChanges,
     };
   }
 
@@ -1878,7 +2046,7 @@ function analyzeDatasetDiff(previousData, currentData, columns) {
       ? ""
       : "No material changes detected between previous and current datasets.";
 
-  return { summaryParagraph, summaryBullets, riskFindings };
+  return { summaryParagraph, summaryBullets, riskFindings, schemaChanges };
 }
 
 const demoUsers = [
@@ -2590,6 +2758,11 @@ function App() {
   const [explainMergedPayload, setExplainMergedPayload] = useState(null);
   const [autoAnalysis, setAutoAnalysis] = useState(null);
   const [feedCardHoverId, setFeedCardHoverId] = useState(null);
+  const [tableBrowserViewMode, setTableBrowserViewMode] = useState("list");
+  const [sqlInvestigateById, setSqlInvestigateById] = useState({});
+  const [sqlInvestigateLoadingId, setSqlInvestigateLoadingId] = useState(null);
+  const [sqlCopiedChangeId, setSqlCopiedChangeId] = useState(null);
+  const sqlCopiedTimerRef = useRef(null);
   const [nullRateIncreaseThreshold, setNullRateIncreaseThreshold] =
     useState(5);
   const [distinctValueChangeThreshold, setDistinctValueChangeThreshold] =
@@ -2618,15 +2791,37 @@ function App() {
     [currentData, columns]
   );
 
+  const schemaColumnPairForDiff = useMemo(() => {
+    if (
+      activeSourceName === "snowflake" &&
+      String(snowflakeWarehouseTableDisplay ?? "")
+        .trim()
+        .toLowerCase() === "customers"
+    ) {
+      return {
+        previous: SNOWFLAKE_DEMO_PREVIOUS_SCHEMA.customers,
+        current: SNOWFLAKE_DEMO_CURRENT_SCHEMA.customers,
+      };
+    }
+    return null;
+  }, [activeSourceName, snowflakeWarehouseTableDisplay]);
+
   const diffAnalysis = useMemo(
-    () => analyzeDatasetDiff(previousData, currentData, columns),
-    [previousData, currentData, columns]
+    () =>
+      analyzeDatasetDiff(
+        previousData,
+        currentData,
+        columns,
+        schemaColumnPairForDiff
+      ),
+    [previousData, currentData, columns, schemaColumnPairForDiff]
   );
 
   const {
     summaryParagraph: diffSummaryParagraph,
     summaryBullets: diffSummaryBullets,
     riskFindings,
+    schemaChanges = [],
   } = diffAnalysis;
 
   const firstHighRisk = riskFindings.find((r) => r.severity === "HIGH");
@@ -3272,6 +3467,52 @@ function App() {
     setExplainMergedPayload(null);
   }
 
+  async function handleGetInvestigationSql(sc) {
+    const tableName =
+      activeSourceName === "snowflake"
+        ? snowflakeWarehouseTableDisplay ?? "customers"
+        : activeSourceName === "databricks"
+          ? databricksWarehouseTableDisplay ?? "events"
+          : "dataset";
+    const affectedCols = sc.columnKey
+      ? [sc.columnKey]
+      : columns.map((c) => c.key);
+    const prompt = `Generate a SQL query for Snowflake to investigate this data issue: ${sc.changeText}
+Table: ${tableName}
+Columns: ${affectedCols.join(", ")}
+
+Return ONLY the SQL query, no explanation.
+Make it practical and runnable.`;
+    setSqlInvestigateLoadingId(sc.id);
+    try {
+      const sql = await generateInvestigationSql(prompt);
+      setSqlInvestigateById((prev) => ({ ...prev, [sc.id]: sql }));
+    } catch (e) {
+      console.error(e);
+      setSqlInvestigateById((prev) => ({
+        ...prev,
+        [sc.id]: `-- ${String(e?.message ?? e)}`,
+      }));
+    } finally {
+      setSqlInvestigateLoadingId(null);
+    }
+  }
+
+  function handleCopyInvestigationSql(changeId, text) {
+    const t = String(text ?? "");
+    if (!t || !navigator.clipboard?.writeText) return;
+    navigator.clipboard.writeText(t).then(() => {
+      if (sqlCopiedTimerRef.current) {
+        window.clearTimeout(sqlCopiedTimerRef.current);
+      }
+      setSqlCopiedChangeId(changeId);
+      sqlCopiedTimerRef.current = window.setTimeout(() => {
+        setSqlCopiedChangeId(null);
+        sqlCopiedTimerRef.current = null;
+      }, 2000);
+    });
+  }
+
   function sendChatMessage(text) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -3769,6 +4010,106 @@ function App() {
               )
             ) : (
               <>
+                <div
+                  style={{
+                    maxWidth: "44rem",
+                    margin: "0 auto 18px",
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(148px, 1fr))",
+                    gap: "12px",
+                  }}
+                >
+                  {[
+                    {
+                      label: "Tables monitored",
+                      value: DEMO_TABLES_MONITORED,
+                      sub: "↑ 2 this week",
+                      border: "var(--border)",
+                      numColor: "#ffffff",
+                    },
+                    {
+                      label: "Changes detected",
+                      value: statChanges.length,
+                      sub: null,
+                      border:
+                        statChanges.length > 0
+                          ? "rgba(245, 158, 11, 0.45)"
+                          : "var(--border)",
+                      numColor:
+                        statChanges.length > 0 ? "#f59e0b" : "#ffffff",
+                    },
+                    {
+                      label: "High risk",
+                      value: highRiskCount,
+                      sub: null,
+                      border:
+                        highRiskCount > 0
+                          ? "rgba(239, 68, 68, 0.45)"
+                          : "rgba(34, 197, 94, 0.35)",
+                      numColor: highRiskCount > 0 ? "#ef4444" : "#22c55e",
+                    },
+                    {
+                      label: "Schema changes",
+                      value: schemaChanges.length,
+                      sub: null,
+                      border:
+                        schemaChanges.length > 0
+                          ? "var(--accent-border)"
+                          : "var(--border)",
+                      numColor:
+                        schemaChanges.length > 0
+                          ? "var(--accent)"
+                          : "#ffffff",
+                    },
+                  ].map((card) => (
+                    <div
+                      key={card.label}
+                      style={{
+                        padding: "14px 16px",
+                        borderRadius: "10px",
+                        border: "1px solid var(--border)",
+                        borderLeft: `3px solid ${card.border}`,
+                        background: "#111111",
+                        textAlign: "left",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "28px",
+                          fontWeight: 700,
+                          color: card.numColor,
+                          lineHeight: 1.1,
+                          marginBottom: "6px",
+                        }}
+                      >
+                        {card.value}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--text-muted)",
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        {card.label}
+                      </div>
+                      {card.sub ? (
+                        <div
+                          style={{
+                            marginTop: "6px",
+                            fontSize: "11px",
+                            color: "var(--text)",
+                            opacity: 0.85,
+                          }}
+                        >
+                          {card.sub}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+
                 {activeSourceName === "snowflake" ? (
                   <div
                     style={{
@@ -4059,6 +4400,114 @@ function App() {
                     ))}
                   </ul>
                 )}
+
+                {schemaChanges.length > 0 ? (
+                  <div
+                    style={{
+                      maxWidth: "44rem",
+                      margin: "0 auto 16px",
+                      padding: "14px 16px",
+                      borderRadius: "10px",
+                      border: "1px solid var(--border)",
+                      borderLeft: "4px solid var(--accent)",
+                      background: "var(--social-bg)",
+                      textAlign: "left",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: 700,
+                        color: "var(--text-h)",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      ⚡ Schema changes detected
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        fontSize: "13px",
+                        fontFamily: "var(--mono, ui-monospace, monospace)",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      {schemaChanges.map((ch, idx) => {
+                        if (ch.type === "added") {
+                          return (
+                            <div
+                              key={`sch-${idx}`}
+                              style={{ color: "#4ade80" }}
+                            >
+                              + {ch.column} ({ch.dataType})
+                            </div>
+                          );
+                        }
+                        if (ch.type === "dropped") {
+                          return (
+                            <div
+                              key={`sch-${idx}`}
+                              style={{ color: "#f87171" }}
+                            >
+                              - {ch.column} ({ch.dataType})
+                            </div>
+                          );
+                        }
+                        if (ch.type === "type_change") {
+                          return (
+                            <div
+                              key={`sch-${idx}`}
+                              style={{ color: "#fbbf24" }}
+                            >
+                              ~ {ch.column}: {ch.previousType} → {ch.newType}
+                            </div>
+                          );
+                        }
+                        if (ch.type === "nullability_change") {
+                          return (
+                            <div
+                              key={`sch-${idx}`}
+                              style={{ color: "#fbbf24" }}
+                            >
+                              ~ {ch.column}: nullable{" "}
+                              {ch.previousNullable ? "true" : "false"} →{" "}
+                              {ch.newNullable ? "true" : "false"}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                    {schemaChanges.some((c) => c.type === "dropped") ? (
+                      <p
+                        style={{
+                          margin: "0 0 8px",
+                          fontSize: "12px",
+                          lineHeight: 1.45,
+                          color: "var(--risk-high)",
+                        }}
+                      >
+                        ⚠️ Dropped columns may break downstream queries and
+                        dashboards
+                      </p>
+                    ) : null}
+                    {schemaChanges.some((c) => c.type === "type_change") ? (
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: "12px",
+                          lineHeight: 1.45,
+                          color: "var(--risk-high)",
+                        }}
+                      >
+                        🚨 Type changes can break joins and aggregations
+                        immediately
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {!overviewTrustBannerDismissed ? (
                   <div
@@ -4473,7 +4922,7 @@ function App() {
                                   ? "0 0 0 2px rgba(124, 58, 237, 0.35)"
                                   : "none",
                             boxSizing: "border-box",
-                            overflow: "hidden",
+                            overflow: "visible",
                             filter: isHovered ? "brightness(1.04)" : undefined,
                             transition:
                               "filter 0.15s ease, border-color 0.12s ease, box-shadow 0.12s ease",
@@ -4553,6 +5002,36 @@ function App() {
                               flexWrap: "wrap",
                             }}
                           >
+                            {sc.tier === "HIGH" ? (
+                              <button
+                                type="button"
+                                onClick={() => handleGetInvestigationSql(sc)}
+                                disabled={sqlInvestigateLoadingId === sc.id}
+                                className="app-ghost-btn"
+                                style={{
+                                  padding: "8px 14px",
+                                  borderRadius: "8px",
+                                  border: "1px solid var(--border)",
+                                  background: "var(--social-bg)",
+                                  color: "var(--text-h)",
+                                  fontWeight: 600,
+                                  fontSize: "13px",
+                                  fontFamily: "inherit",
+                                  cursor:
+                                    sqlInvestigateLoadingId === sc.id
+                                      ? "wait"
+                                      : "pointer",
+                                  opacity:
+                                    sqlInvestigateLoadingId === sc.id
+                                      ? 0.75
+                                      : 1,
+                                }}
+                              >
+                                {sqlInvestigateLoadingId === sc.id
+                                  ? "…"
+                                  : "📋 Get SQL"}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => handleOpenAiExplainPanel(sc)}
@@ -4590,6 +5069,91 @@ function App() {
                               Mark as known
                             </button>
                           </div>
+                          {sc.tier === "HIGH" &&
+                          (sqlInvestigateLoadingId === sc.id ||
+                            sqlInvestigateById[sc.id]) ? (
+                            <div
+                              style={{
+                                padding: "0 16px 16px",
+                                boxSizing: "border-box",
+                              }}
+                            >
+                              {sqlInvestigateLoadingId === sc.id &&
+                              !sqlInvestigateById[sc.id] ? (
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    fontSize: "13px",
+                                    color: "var(--text-muted)",
+                                  }}
+                                >
+                                  Generating SQL…
+                                </p>
+                              ) : null}
+                              {sqlInvestigateById[sc.id] ? (
+                                <div
+                                  style={{
+                                    position: "relative",
+                                    background: "#0a0a0a",
+                                    borderRadius: "8px",
+                                    border: "1px solid var(--border)",
+                                    padding: "36px 14px 12px",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleCopyInvestigationSql(
+                                        sc.id,
+                                        sqlInvestigateById[sc.id]
+                                      )
+                                    }
+                                    className="app-ghost-btn"
+                                    style={{
+                                      position: "absolute",
+                                      top: "8px",
+                                      right: "8px",
+                                      padding: "4px 10px",
+                                      fontSize: "11px",
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {sqlCopiedChangeId === sc.id
+                                      ? "Copied!"
+                                      : "Copy"}
+                                  </button>
+                                  <pre
+                                    style={{
+                                      margin: 0,
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      fontSize: "12px",
+                                      lineHeight: 1.5,
+                                      fontFamily:
+                                        "ui-monospace, Consolas, monospace",
+                                      color: "#e5e5e5",
+                                    }}
+                                  >
+                                    {highlightSqlForDisplay(
+                                      sqlInvestigateById[sc.id]
+                                    ).map((p, pi) => (
+                                      <span
+                                        key={pi}
+                                        style={{
+                                          color:
+                                            p.k === "kw"
+                                              ? "var(--accent)"
+                                              : "#e5e5e5",
+                                        }}
+                                      >
+                                        {p.t}
+                                      </span>
+                                    ))}
+                                  </pre>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })
@@ -5831,6 +6395,54 @@ function App() {
                               <div>{insight.nullPercentage} nulls</div>
                               <div
                                 style={{
+                                  marginTop: "10px",
+                                  paddingTop: "8px",
+                                  borderTop: "1px solid rgba(255,255,255,0.06)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: "10px",
+                                    color: "var(--text-muted)",
+                                    marginBottom: "2px",
+                                  }}
+                                >
+                                  7-day trend
+                                </div>
+                                <div
+                                  style={{ width: "80px", height: "30px" }}
+                                >
+                                  <ResponsiveContainer width={80} height={30}>
+                                    <LineChart
+                                      data={insightSparklineSeries(
+                                        insight.key,
+                                        riskFindings
+                                      )}
+                                      margin={{
+                                        top: 2,
+                                        right: 0,
+                                        left: 0,
+                                        bottom: 2,
+                                      }}
+                                      style={{ background: "transparent" }}
+                                    >
+                                      <Line
+                                        type="monotone"
+                                        dataKey="v"
+                                        stroke={insightSparklineColor(
+                                          insight.key,
+                                          riskFindings
+                                        )}
+                                        strokeWidth={1.5}
+                                        dot={false}
+                                        isAnimationActive={false}
+                                      />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              </div>
+                              <div
+                                style={{
                                   marginTop: "8px",
                                   fontSize: "12px",
                                   fontWeight: 600,
@@ -6815,6 +7427,67 @@ function App() {
                   </span>
                 </div>
 
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    marginBottom: "10px",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-pressed={tableBrowserViewMode === "list"}
+                    onClick={() => setTableBrowserViewMode("list")}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      border: `1px solid ${
+                        tableBrowserViewMode === "list"
+                          ? "var(--accent-border)"
+                          : "var(--border)"
+                      }`,
+                      background:
+                        tableBrowserViewMode === "list"
+                          ? "var(--accent-bg)"
+                          : "transparent",
+                      color: "var(--text-h)",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    List view
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={tableBrowserViewMode === "heatmap"}
+                    onClick={() => setTableBrowserViewMode("heatmap")}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      border: `1px solid ${
+                        tableBrowserViewMode === "heatmap"
+                          ? "var(--accent-border)"
+                          : "var(--border)"
+                      }`,
+                      background:
+                        tableBrowserViewMode === "heatmap"
+                          ? "var(--accent-bg)"
+                          : "transparent",
+                      color: "var(--text-h)",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Heatmap
+                  </button>
+                </div>
+
                 <input
                   type="search"
                   value={tableSearchQuery}
@@ -6845,6 +7518,125 @@ function App() {
                   {tableBrowserSummary.highRisk} high risk
                 </p>
 
+                {tableBrowserViewMode === "heatmap" ? (
+                  <>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(4, minmax(0, 1fr))",
+                        gap: "8px",
+                        maxWidth: "100%",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      {tableBrowserFiltered.map((tbl) => (
+                        <button
+                          key={tbl.name}
+                          type="button"
+                          onClick={() =>
+                            loadDemoForWarehouseTable(tbl.name, "snowflake")
+                          }
+                          style={{
+                            minHeight: "80px",
+                            padding: "10px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            background: heatmapCellBackground(tbl),
+                            cursor: "pointer",
+                            textAlign: "left",
+                            fontFamily: "inherit",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: "6px",
+                            boxSizing: "border-box",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              color: "#ffffff",
+                              lineHeight: 1.25,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {tbl.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              color: "var(--text-muted)",
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {tbl.schema}
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "4px",
+                              justifyContent: "flex-start",
+                            }}
+                          >
+                            {tbl.riskLevel === "high" ||
+                            tbl.riskLevel === "medium" ? (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontWeight: 700,
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  border: "1px solid var(--border)",
+                                  background:
+                                    tbl.riskLevel === "high"
+                                      ? "var(--risk-high-bg)"
+                                      : "var(--code-bg)",
+                                  color:
+                                    tbl.riskLevel === "high"
+                                      ? "var(--risk-high)"
+                                      : "var(--text-h)",
+                                }}
+                              >
+                                {tbl.riskLevel === "high"
+                                  ? "High"
+                                  : "Medium"}
+                              </span>
+                            ) : null}
+                            {tbl.changeCount > 0 ? (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontWeight: 700,
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  background: "var(--risk-high-bg)",
+                                  color: "var(--risk-high)",
+                                  border: "1px solid var(--risk-high-border)",
+                                }}
+                              >
+                                {tbl.changeCount} chg
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <p
+                      style={{
+                        margin: "0 0 8px",
+                        fontSize: "12px",
+                        color: "var(--text-muted)",
+                        textAlign: "left",
+                      }}
+                    >
+                      🔴 High risk · 🟡 Changes · 🟢 OK · ⚫ Not monitored
+                    </p>
+                  </>
+                ) : (
                 <div
                   style={{
                     display: "flex",
@@ -7087,11 +7879,49 @@ function App() {
                               ) : null}
                             </div>
                           </div>
+                          <div
+                            style={{
+                              flexBasis: "100%",
+                              width: "100%",
+                              marginTop: "4px",
+                              paddingTop: "8px",
+                              borderTop: "1px solid rgba(255,255,255,0.06)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                color: "var(--text-muted)",
+                                marginBottom: "2px",
+                              }}
+                            >
+                              7-day trend
+                            </div>
+                            <div style={{ width: "80px", height: "30px" }}>
+                              <ResponsiveContainer width={80} height={30}>
+                                <LineChart
+                                  data={tableBrowserSparklineSeries(tbl)}
+                                  margin={{ top: 2, right: 0, left: 0, bottom: 2 }}
+                                  style={{ background: "transparent" }}
+                                >
+                                  <Line
+                                    type="monotone"
+                                    dataKey="v"
+                                    stroke={tableBrowserSparklineColor(tbl)}
+                                    strokeWidth={1.5}
+                                    dot={false}
+                                    isAnimationActive={false}
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
                         </div>
                       );
                     })
                   )}
                 </div>
+                )}
               </div>
             ) : null}
 
@@ -7298,6 +8128,67 @@ function App() {
                   </span>
                 </div>
 
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    marginBottom: "10px",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-pressed={tableBrowserViewMode === "list"}
+                    onClick={() => setTableBrowserViewMode("list")}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      border: `1px solid ${
+                        tableBrowserViewMode === "list"
+                          ? "var(--accent-border)"
+                          : "var(--border)"
+                      }`,
+                      background:
+                        tableBrowserViewMode === "list"
+                          ? "var(--accent-bg)"
+                          : "transparent",
+                      color: "var(--text-h)",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    List view
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={tableBrowserViewMode === "heatmap"}
+                    onClick={() => setTableBrowserViewMode("heatmap")}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      border: `1px solid ${
+                        tableBrowserViewMode === "heatmap"
+                          ? "var(--accent-border)"
+                          : "var(--border)"
+                      }`,
+                      background:
+                        tableBrowserViewMode === "heatmap"
+                          ? "var(--accent-bg)"
+                          : "transparent",
+                      color: "var(--text-h)",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Heatmap
+                  </button>
+                </div>
+
                 <input
                   type="search"
                   value={tableSearchQuery}
@@ -7328,6 +8219,125 @@ function App() {
                   {tableBrowserSummary.highRisk} high risk
                 </p>
 
+                {tableBrowserViewMode === "heatmap" ? (
+                  <>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(4, minmax(0, 1fr))",
+                        gap: "8px",
+                        maxWidth: "100%",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      {tableBrowserFiltered.map((tbl) => (
+                        <button
+                          key={`db-hm-${tbl.name}`}
+                          type="button"
+                          onClick={() =>
+                            loadDemoForWarehouseTable(tbl.name, "databricks")
+                          }
+                          style={{
+                            minHeight: "80px",
+                            padding: "10px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border)",
+                            background: heatmapCellBackground(tbl),
+                            cursor: "pointer",
+                            textAlign: "left",
+                            fontFamily: "inherit",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: "6px",
+                            boxSizing: "border-box",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              color: "#ffffff",
+                              lineHeight: 1.25,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {tbl.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              color: "var(--text-muted)",
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {tbl.schema}
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "4px",
+                              justifyContent: "flex-start",
+                            }}
+                          >
+                            {tbl.riskLevel === "high" ||
+                            tbl.riskLevel === "medium" ? (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontWeight: 700,
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  border: "1px solid var(--border)",
+                                  background:
+                                    tbl.riskLevel === "high"
+                                      ? "var(--risk-high-bg)"
+                                      : "var(--code-bg)",
+                                  color:
+                                    tbl.riskLevel === "high"
+                                      ? "var(--risk-high)"
+                                      : "var(--text-h)",
+                                }}
+                              >
+                                {tbl.riskLevel === "high"
+                                  ? "High"
+                                  : "Medium"}
+                              </span>
+                            ) : null}
+                            {tbl.changeCount > 0 ? (
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontWeight: 700,
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  background: "var(--risk-high-bg)",
+                                  color: "var(--risk-high)",
+                                  border: "1px solid var(--risk-high-border)",
+                                }}
+                              >
+                                {tbl.changeCount} chg
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <p
+                      style={{
+                        margin: "0 0 8px",
+                        fontSize: "12px",
+                        color: "var(--text-muted)",
+                        textAlign: "left",
+                      }}
+                    >
+                      🔴 High risk · 🟡 Changes · 🟢 OK · ⚫ Not monitored
+                    </p>
+                  </>
+                ) : (
                 <div
                   style={{
                     display: "flex",
@@ -7570,11 +8580,49 @@ function App() {
                               ) : null}
                             </div>
                           </div>
+                          <div
+                            style={{
+                              flexBasis: "100%",
+                              width: "100%",
+                              marginTop: "4px",
+                              paddingTop: "8px",
+                              borderTop: "1px solid rgba(255,255,255,0.06)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                color: "var(--text-muted)",
+                                marginBottom: "2px",
+                              }}
+                            >
+                              7-day trend
+                            </div>
+                            <div style={{ width: "80px", height: "30px" }}>
+                              <ResponsiveContainer width={80} height={30}>
+                                <LineChart
+                                  data={tableBrowserSparklineSeries(tbl)}
+                                  margin={{ top: 2, right: 0, left: 0, bottom: 2 }}
+                                  style={{ background: "transparent" }}
+                                >
+                                  <Line
+                                    type="monotone"
+                                    dataKey="v"
+                                    stroke={tableBrowserSparklineColor(tbl)}
+                                    strokeWidth={1.5}
+                                    dot={false}
+                                    isAnimationActive={false}
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
                         </div>
                       );
                     })
                   )}
                 </div>
+                )}
               </div>
             ) : null}
 

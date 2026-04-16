@@ -64,6 +64,10 @@ and concisely. Always respond in this exact JSON format:
 Be specific, practical, and avoid generic answers. 
 Use the data context provided.`;
 
+const SQL_INVESTIGATION_SYSTEM = `You are a Snowflake SQL generator for Unlockdb.
+Return ONLY the SQL query text. No markdown fences, no explanation, no commentary.
+Use standard Snowflake SQL. Make queries practical and runnable.`;
+
 export async function askClaude(prompt, context, options = {}) {
   const mode = options.mode === "chat" ? "chat" : "explain";
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
@@ -79,8 +83,9 @@ export async function askClaude(prompt, context, options = {}) {
       ? String(context ?? "").slice(0, 6000)
       : JSON.stringify(context ?? {}, null, 2);
 
-  const userContent =
-    mode === "chat"
+  const userContent = options.plainPrompt
+    ? String(prompt ?? "")
+    : mode === "chat"
       ? `Question:\n${prompt}\n\nDataset context:\n${contextBlock}`
       : `Analyze this data change:
 
@@ -88,6 +93,13 @@ ${prompt}
 
 Data context:
 ${contextBlock}`;
+
+  const systemPrompt =
+    typeof options.systemPrompt === "string"
+      ? options.systemPrompt
+      : mode === "chat"
+        ? CHAT_SYSTEM_PROMPT
+        : EXPLAIN_SYSTEM_PROMPT;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -99,8 +111,13 @@ ${contextBlock}`;
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: mode === "chat" ? 512 : 1024,
-      system: mode === "chat" ? CHAT_SYSTEM_PROMPT : EXPLAIN_SYSTEM_PROMPT,
+      max_tokens:
+        typeof options.maxTokens === "number"
+          ? options.maxTokens
+          : mode === "chat"
+            ? 512
+            : 1024,
+      system: systemPrompt,
       messages: [
         {
           role: "user",
@@ -130,4 +147,20 @@ ${contextBlock}`;
     likelyCause: "",
     suggestedAction: "",
   };
+}
+
+export async function generateInvestigationSql(fullPrompt) {
+  const raw = await askClaude(fullPrompt, "", {
+    mode: "chat",
+    systemPrompt: SQL_INVESTIGATION_SYSTEM,
+    maxTokens: 1200,
+    plainPrompt: true,
+  });
+  if (!raw) {
+    return "-- Set VITE_ANTHROPIC_API_KEY to generate SQL from Claude.";
+  }
+  let t = raw.trim();
+  const fenced = /^```(?:sql)?\s*\r?\n?([\s\S]*?)\r?\n?```\s*$/i.exec(t);
+  if (fenced) t = fenced[1].trim();
+  return t;
 }
