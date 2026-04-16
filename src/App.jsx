@@ -2384,6 +2384,24 @@ const governanceMutedStyle = {
   lineHeight: 1.45,
 };
 
+const securityPageWrapStyle = {
+  maxWidth: "700px",
+  marginLeft: "auto",
+  marginRight: "auto",
+  marginBottom: "36px",
+  textAlign: "left",
+  padding: "0 20px",
+  boxSizing: "border-box",
+};
+
+const securitySectionCardStyle = {
+  padding: "20px 22px",
+  borderRadius: "10px",
+  border: "1px solid var(--border)",
+  background: "var(--social-bg)",
+  marginBottom: "20px",
+};
+
 const overviewHelpSectionStyle = {
   maxWidth: "44rem",
   marginLeft: "auto",
@@ -3375,6 +3393,7 @@ function App() {
     { id: "sources", label: "Sources" },
     { id: "chat", label: "Copilot" },
     { id: "governance", label: "Governance" },
+    { id: "security", label: "Security" },
     { id: "settings", label: "Settings" },
     { id: "audit", label: "Audit" },
     {
@@ -3465,6 +3484,7 @@ function App() {
           {navTabs.map((tab) => (
             <button
               key={tab.id}
+              id={tab.id}
               type="button"
               aria-current={activeTab === tab.id ? "page" : undefined}
               onClick={() => setActiveTab(tab.id)}
@@ -7514,6 +7534,520 @@ function App() {
                   </ul>
                 </div>
               ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "security" && (
+          <section style={{ ...securityPageWrapStyle, marginBottom: 0 }}>
+            <h1
+              style={{
+                fontSize: "clamp(26px, 4vw, 32px)",
+                fontWeight: 700,
+                color: "var(--text-h)",
+                margin: "0 0 8px",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.2,
+              }}
+            >
+              Security &amp; Privacy
+            </h1>
+            <p
+              style={{
+                fontSize: "16px",
+                color: "var(--text)",
+                margin: "0 0 28px",
+                lineHeight: 1.5,
+              }}
+            >
+              How Unlockdb handles your data
+            </p>
+
+            <div style={securitySectionCardStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  marginBottom: "14px",
+                }}
+              >
+                <span style={{ fontSize: "24px", lineHeight: 1.2 }} aria-hidden>
+                  🔒
+                </span>
+                <h2
+                  style={{
+                    fontSize: "17px",
+                    fontWeight: 600,
+                    color: "var(--text-h)",
+                    margin: 0,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  Your data stays in your warehouse
+                </h2>
+              </div>
+              <p
+                style={{
+                  fontSize: "14px",
+                  lineHeight: 1.55,
+                  color: "var(--text)",
+                  margin: "0 0 18px",
+                }}
+              >
+                Unlockdb connects to your Snowflake or Databricks environment in
+                read-only mode. Your raw data never leaves your warehouse. We
+                only read metadata and statistical summaries — never the actual
+                row values.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px 14px",
+                  padding: "16px 12px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--border)",
+                  background: "var(--code-bg)",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-hover)",
+                    background: "var(--bg-secondary)",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "var(--text-h)",
+                    textAlign: "center",
+                    minWidth: "min(140px, 100%)",
+                    flex: "1 1 120px",
+                  }}
+                >
+                  Your Snowflake
+                </div>
+                <span
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "20px",
+                    fontWeight: 600,
+                    flexShrink: 0,
+                  }}
+                  aria-hidden
+                >
+                  →
+                </span>
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--accent-border)",
+                    background: "var(--accent-bg)",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "var(--accent)",
+                    textAlign: "center",
+                    minWidth: "min(180px, 100%)",
+                    flex: "1 1 160px",
+                  }}
+                >
+                  Unlockdb reads stats only
+                </div>
+                <span
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "20px",
+                    fontWeight: 600,
+                    flexShrink: 0,
+                  }}
+                  aria-hidden
+                >
+                  →
+                </span>
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-hover)",
+                    background: "var(--bg-secondary)",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "var(--text-h)",
+                    textAlign: "center",
+                    minWidth: "min(140px, 100%)",
+                    flex: "1 1 120px",
+                  }}
+                >
+                  AI Analysis
+                </div>
+              </div>
+            </div>
+
+            <div style={securitySectionCardStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  marginBottom: "16px",
+                }}
+              >
+                <span style={{ fontSize: "24px", lineHeight: 1.2 }} aria-hidden>
+                  🤖
+                </span>
+                <h2
+                  style={{
+                    fontSize: "17px",
+                    fontWeight: 600,
+                    color: "var(--text-h)",
+                    margin: 0,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  What Claude AI sees
+                </h2>
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                  gap: "14px",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "16px 18px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(34, 197, 94, 0.35)",
+                    background: "var(--code-bg)",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#4ade80",
+                      margin: "0 0 12px",
+                    }}
+                  >
+                    What Claude sees
+                  </h3>
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: 0,
+                      fontSize: "13px",
+                      lineHeight: 1.55,
+                      color: "var(--text)",
+                      listStyle: "none",
+                    }}
+                  >
+                    <li style={{ marginBottom: "8px" }}>
+                      ✅ Null percentage per column (e.g. &quot;20%&quot;)
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      ✅ Distinct value counts (e.g. &quot;4 unique values&quot;)
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      ✅ Row counts (e.g. &quot;12,847 rows&quot;)
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      ✅ Change summaries (e.g. &quot;null rate increased&quot;)
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      ✅ Column names and data types
+                    </li>
+                    <li>✅ Statistical distributions</li>
+                  </ul>
+                </div>
+                <div
+                  style={{
+                    padding: "16px 18px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(239, 68, 68, 0.35)",
+                    background: "var(--code-bg)",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#f87171",
+                      margin: "0 0 12px",
+                    }}
+                  >
+                    What Claude never sees
+                  </h3>
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: 0,
+                      fontSize: "13px",
+                      lineHeight: 1.55,
+                      color: "var(--text)",
+                      listStyle: "none",
+                    }}
+                  >
+                    <li style={{ marginBottom: "8px" }}>
+                      ❌ Actual row values or cell contents
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      ❌ Customer names, emails, or IDs
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      ❌ Financial figures or transaction data
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      ❌ Any personally identifiable information
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      ❌ Business-sensitive data
+                    </li>
+                    <li>❌ Raw query results</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div style={securitySectionCardStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  marginBottom: "12px",
+                }}
+              >
+                <span style={{ fontSize: "24px", lineHeight: 1.2 }} aria-hidden>
+                  🛡️
+                </span>
+                <h2
+                  style={{
+                    fontSize: "17px",
+                    fontWeight: 600,
+                    color: "var(--text-h)",
+                    margin: 0,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  AI &amp; data training
+                </h2>
+              </div>
+              <p
+                style={{
+                  fontSize: "14px",
+                  lineHeight: 1.55,
+                  color: "var(--text)",
+                  margin: "0 0 14px",
+                }}
+              >
+                Anthropic (the company behind Claude) does not use API calls to
+                train their AI models. Your statistical summaries sent through
+                Unlockdb are never used for model training. This is documented in
+                Anthropic&apos;s API data privacy policy.
+              </p>
+              <span
+                style={{
+                  display: "inline-block",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  padding: "6px 12px",
+                  borderRadius: "999px",
+                  border: "1px solid var(--border-hover)",
+                  background: "var(--bg-secondary)",
+                  color: "var(--text-h)",
+                }}
+              >
+                Verified: Anthropic API Data Policy
+              </span>
+            </div>
+
+            <div style={securitySectionCardStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  marginBottom: "14px",
+                }}
+              >
+                <span style={{ fontSize: "24px", lineHeight: 1.2 }} aria-hidden>
+                  🔐
+                </span>
+                <h2
+                  style={{
+                    fontSize: "17px",
+                    fontWeight: 600,
+                    color: "var(--text-h)",
+                    margin: 0,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  How we protect your connection
+                </h2>
+              </div>
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: 0,
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                  color: "var(--text)",
+                  listStyle: "none",
+                }}
+              >
+                <li style={{ marginBottom: "10px" }}>
+                  ✅ All connections use TLS encryption in transit
+                </li>
+                <li style={{ marginBottom: "10px" }}>
+                  ✅ Snowflake/Databricks credentials are never stored by Unlockdb
+                </li>
+                <li style={{ marginBottom: "10px" }}>
+                  ✅ API keys are stored in secure environment variables only
+                </li>
+                <li style={{ marginBottom: "10px" }}>
+                  ✅ Read-only access — Unlockdb cannot modify your data
+                </li>
+                <li style={{ marginBottom: "10px" }}>
+                  ✅ No data is cached or stored on Unlockdb servers
+                </li>
+                <li>✅ Each session is isolated</li>
+              </ul>
+            </div>
+
+            <div style={securitySectionCardStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  marginBottom: "12px",
+                }}
+              >
+                <span style={{ fontSize: "24px", lineHeight: 1.2 }} aria-hidden>
+                  🇪🇺
+                </span>
+                <h2
+                  style={{
+                    fontSize: "17px",
+                    fontWeight: 600,
+                    color: "var(--text-h)",
+                    margin: 0,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  GDPR &amp; Compliance
+                </h2>
+              </div>
+              <p
+                style={{
+                  fontSize: "14px",
+                  lineHeight: 1.55,
+                  color: "var(--text)",
+                  margin: "0 0 14px",
+                }}
+              >
+                Unlockdb is designed with GDPR compliance in mind:
+              </p>
+              <ul
+                style={{
+                  margin: "0 0 16px",
+                  paddingLeft: "1.15rem",
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                  color: "var(--text)",
+                }}
+              >
+                <li style={{ marginBottom: "8px" }}>
+                  We process only statistical metadata, not personal data
+                </li>
+                <li style={{ marginBottom: "8px" }}>
+                  No personal data is transmitted to AI systems
+                </li>
+                <li style={{ marginBottom: "8px" }}>
+                  Data minimization by design — we only read what is needed for
+                  analysis
+                </li>
+                <li>
+                  You can disconnect your data source at any time
+                </li>
+              </ul>
+              <p
+                style={{
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                  color: "var(--text-muted)",
+                  margin: 0,
+                  fontStyle: "italic",
+                }}
+              >
+                Enterprise customers: Data Processing Agreements (DPA) available
+                on request.
+              </p>
+            </div>
+
+            <div
+              style={{
+                ...securitySectionCardStyle,
+                marginBottom: 0,
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "17px",
+                  fontWeight: 600,
+                  color: "var(--text-h)",
+                  margin: "0 0 12px",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Questions?
+              </h2>
+              <p
+                style={{
+                  fontSize: "14px",
+                  lineHeight: 1.55,
+                  color: "var(--text)",
+                  margin: "0 0 16px",
+                }}
+              >
+                Have security questions or need a Data Processing Agreement?
+              </p>
+              <p
+                style={{
+                  fontSize: "14px",
+                  lineHeight: 1.55,
+                  color: "var(--text)",
+                  margin: "0 0 16px",
+                }}
+              >
+                Contact us:{" "}
+                <a
+                  href="mailto:security@unlockdb.com"
+                  style={{ color: "var(--accent)", fontWeight: 600 }}
+                >
+                  security@unlockdb.com
+                </a>
+              </p>
+              <button
+                type="button"
+                className="app-ghost-btn"
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                Request DPA →
+              </button>
             </div>
           </section>
         )}
