@@ -2783,6 +2783,10 @@ function App() {
   const [commandResult, setCommandResult] = useState(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
+  /** Latest exchange shown in sticky bar (user + Unlockdb reply). */
+  const [lastCopilotReply, setLastCopilotReply] = useState(null);
+  /** After current CSV (or sample) load — quick actions in copilot bar. */
+  const [csvUploadSuccessTip, setCsvUploadSuccessTip] = useState(null);
   const [history, setHistory] = useState([]);
   const [dismissed, setDismissed] = useState(false);
   const [overviewTrustBannerDismissed, setOverviewTrustBannerDismissed] =
@@ -3277,7 +3281,7 @@ function App() {
         window.alert("CSV needs at least one data row below the header.");
         return;
       }
-      onRows(rows);
+      onRows(rows, headerKeys.length);
     };
     reader.onerror = () => window.alert("Could not read the file.");
     reader.readAsText(file);
@@ -3318,7 +3322,7 @@ function App() {
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
-    readCsvFile(file, (rows) => {
+    readCsvFile(file, (rows, columnCount) => {
       setSnowflakeDemoConnected(false);
       setDatabricksDemoConnected(false);
       resetSnowflakeWarehouseBrowserState();
@@ -3327,8 +3331,27 @@ function App() {
       setActiveSourceName("csv");
       setCurrentData(rows);
       setCurrentFileName(file.name);
+      setCsvUploadSuccessTip({
+        rows: rows.length,
+        columns: columnCount,
+      });
       input.value = "";
     });
+  }
+
+  function handleResetCsvFiles() {
+    setPreviousData([]);
+    setCurrentData([]);
+    setPreviousFileName("Not connected");
+    setCurrentFileName("Not connected");
+    setCsvUploadSuccessTip(null);
+    setSnowflakeDemoConnected(false);
+    setDatabricksDemoConnected(false);
+    resetSnowflakeWarehouseBrowserState();
+    resetTableBrowserState();
+    setDatabricksWarehouseTableDisplay(null);
+    setActiveSourceName("csv");
+    setSelectedSource("csv");
   }
 
   function handleUseSampleDataset() {
@@ -3343,6 +3366,10 @@ function App() {
     setCurrentData(SAMPLE_CURRENT_DATA);
     setPreviousFileName("sample-previous.csv");
     setCurrentFileName("sample-current.csv");
+    setCsvUploadSuccessTip({
+      rows: SAMPLE_CURRENT_DATA.length,
+      columns: buildColumnsFromCurrentOnly(SAMPLE_CURRENT_DATA).length,
+    });
   }
 
   function selectDataSource(id) {
@@ -3567,6 +3594,14 @@ Return ONLY the SQL, no explanation.`;
   function sendChatMessage(text) {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (messages.length === 0) {
+      setCopilotHistoryExpanded(true);
+    }
+    setLastCopilotReply({
+      user: trimmed,
+      reply: "",
+      pending: true,
+    });
     const copilotReply = tryHandleCopilotCommand(trimmed, {
       columns,
       statChanges,
@@ -3648,6 +3683,11 @@ Return ONLY the SQL, no explanation.`;
             : m
         )
       );
+      setLastCopilotReply({
+        user: trimmed,
+        reply: finalText,
+        pending: false,
+      });
       setCommandResult({
         copilot: copilotReply != null,
         query: trimmed,
@@ -7241,6 +7281,26 @@ Return ONLY the SQL, no explanation.`;
                   >
                     Use sample dataset
                   </button>
+                  {(previousData.length > 0 || currentData.length > 0) && (
+                    <button
+                      type="button"
+                      className="app-ghost-btn"
+                      onClick={handleResetCsvFiles}
+                      style={{
+                        padding: "10px 18px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        background: "var(--social-bg)",
+                        color: "var(--text-h)",
+                        fontWeight: 500,
+                        fontSize: "14px",
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                      }}
+                    >
+                      ↺ Load new files
+                    </button>
+                  )}
                 </div>
                 <div
                   style={{
@@ -10303,6 +10363,94 @@ Return ONLY the SQL, no explanation.`;
             pointerEvents: "auto",
           }}
         >
+          {csvUploadSuccessTip ? (
+            <div
+              style={{
+                marginBottom: "10px",
+                padding: "12px 14px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                background: "var(--social-bg)",
+                textAlign: "left",
+                position: "relative",
+              }}
+            >
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={() => setCsvUploadSuccessTip(null)}
+                style={{
+                  position: "absolute",
+                  top: "8px",
+                  right: "10px",
+                  padding: "0 6px",
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--text-muted)",
+                  fontSize: "16px",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                ×
+              </button>
+              <p
+                style={{
+                  margin: "0 28px 10px 0",
+                  fontSize: "14px",
+                  lineHeight: 1.45,
+                  color: "var(--text)",
+                }}
+              >
+                ✅ Data loaded — {csvUploadSuccessTip.rows} rows ·{" "}
+                {csvUploadSuccessTip.columns} columns
+                <br />
+                <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>
+                  What would you like to do?
+                </span>
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                <button
+                  type="button"
+                  className="app-ghost-btn"
+                  onClick={() => {
+                    sendChatMessage("What changed?");
+                    setCsvUploadSuccessTip(null);
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    borderRadius: "8px",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                  }}
+                >
+                  What changed?
+                </button>
+                <button
+                  type="button"
+                  className="app-ghost-btn"
+                  onClick={() => {
+                    sendChatMessage("What's the biggest risk?");
+                    setCsvUploadSuccessTip(null);
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    borderRadius: "8px",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                  }}
+                >
+                  Show risks
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {copilotHistoryExpanded ? (
             <div
               style={{
@@ -10385,6 +10533,99 @@ Return ONLY the SQL, no explanation.`;
               {copilotHistoryExpanded ? "Hide" : "History"}
             </button>
           </div>
+
+          {lastCopilotReply ? (
+            <div
+              style={{
+                marginBottom: "10px",
+                padding: "12px 16px",
+                borderTop: "1px solid #2f2f2f",
+                background: "#111111",
+                borderRadius: "8px",
+                textAlign: "left",
+                position: "relative",
+                maxHeight: "200px",
+                overflowY: "auto",
+              }}
+            >
+              <button
+                type="button"
+                aria-label="Dismiss reply"
+                onClick={() => setLastCopilotReply(null)}
+                style={{
+                  position: "absolute",
+                  top: "8px",
+                  right: "10px",
+                  padding: "0 6px",
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--text-muted)",
+                  fontSize: "16px",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                ×
+              </button>
+              <p
+                style={{
+                  margin: "0 28px 8px 0",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
+                  color: "var(--text)",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                <span style={{ fontWeight: 700, color: "var(--text-h)" }}>
+                  You:{" "}
+                </span>
+                &ldquo;{lastCopilotReply.user}&rdquo;
+              </p>
+              <p
+                style={{
+                  margin: "0 28px 10px 0",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
+                  color: "var(--text)",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                <span style={{ fontWeight: 700, color: "var(--text-h)" }}>
+                  Unlockdb:{" "}
+                </span>
+                {lastCopilotReply.pending ? (
+                  <span>
+                    <span style={loadingDotStyle} aria-hidden>
+                      ●
+                    </span>{" "}
+                    Analyzing…
+                  </span>
+                ) : (
+                  lastCopilotReply.reply
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigateToTab("chat")}
+                style={{
+                  padding: 0,
+                  border: "none",
+                  background: "none",
+                  color: "var(--accent)",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  textDecoration: "underline",
+                }}
+              >
+                Open in Copilot →
+              </button>
+            </div>
+          ) : null}
 
           <div
             style={{
