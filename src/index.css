@@ -190,7 +190,7 @@ button.chat-suggestion-btn:hover {
   color: #ffffff;
 }
 
-button.copilot-bar-chip {
+button.ai-assistant-bar-chip {
   padding: 5px 10px;
   font-size: 13px;
   font-family: inherit;
@@ -203,7 +203,7 @@ button.copilot-bar-chip {
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-button.copilot-bar-chip:hover {
+button.ai-assistant-bar-chip:hover {
   background: #1a1a1a;
   color: #ffffff;
   border-color: #333333;

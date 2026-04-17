@@ -1364,8 +1364,8 @@ function buildCopilotContextPack(ctx, meta) {
   if (risks.length) lines.push(`Risks: ${risks.join(" || ")}`);
   const imp = (meta.impactLines ?? []).slice(0, 15);
   if (imp.length) lines.push(`Impact lines: ${imp.join(" · ")}`);
-  if (meta.copilotReply) {
-    lines.push(`Recent UI action: ${meta.copilotReply}`);
+  if (meta.deterministicActionReply) {
+    lines.push(`Recent UI action: ${meta.deterministicActionReply}`);
   }
   if (ctx.rowLevelDiff != null && ctx.dataQualityIssues != null) {
     lines.push(
@@ -1478,7 +1478,7 @@ function buildAiExplainForStatChange(statChange, riskFindings) {
   ];
   const actGeneric = [
     `Share this diff with the owner of “${label}” and walk through baseline vs current row samples in the Details grid.`,
-    `Use the drill-down and copilot filters to isolate affected rows, then trace them back to the ingestion step.`,
+    `Use the drill-down and AI assistant filters to isolate affected rows, then trace them back to the ingestion step.`,
   ];
 
   let actPool = actGeneric;
@@ -1839,12 +1839,12 @@ function tryHandleCopilotCommand(text, deps) {
   }
 
   if (
-    /\b(go to|open)\s+(chat|copilot)\b/.test(q) ||
-    /\bcopilot history\b/.test(q) ||
-    /\bopen copilot\b/.test(q)
+    /\b(go to|open)\s+(chat|copilot|ai\s*assistant)\b/i.test(q) ||
+    /\b(copilot|ai\s*assistant)\s+history\b/i.test(q) ||
+    /\bopen\s+(copilot|ai\s*assistant)\b/i.test(q)
   ) {
     navigateToTab("chat");
-    return "Opened Copilot history.";
+    return "Opened AI Assistant history.";
   }
 
   if (
@@ -2446,7 +2446,7 @@ const demoUsers = [
     permissions: [
       "Connect data sources",
       "View sample data",
-      "Use chat",
+      "Use AI Assistant",
       "Manage users",
     ],
   },
@@ -2455,7 +2455,7 @@ const demoUsers = [
     role: "Analyst",
     permissions: [
       "View sample data",
-      "Use chat",
+      "Use AI Assistant",
       "View risks and impact",
     ],
   },
@@ -2470,7 +2470,11 @@ const auditLogEvents = [
   { id: "1", text: "Jonne connected Snowflake", when: "2 min ago" },
   { id: "2", text: "Anna viewed table customers", when: "5 min ago" },
   { id: "3", text: "Mika viewed impact summary", when: "12 min ago" },
-  { id: "4", text: 'Anna asked chat: "What changed?"', when: "18 min ago" },
+  {
+    id: "4",
+    text: 'Anna asked AI Assistant: "What changed?"',
+    when: "18 min ago",
+  },
   {
     id: "5",
     text: "Jonne reviewed data quality risk in Name column",
@@ -3146,7 +3150,7 @@ function App() {
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
   /** Latest exchange shown in sticky bar (user + Unlockdb reply). */
   const [lastCopilotReply, setLastCopilotReply] = useState(null);
-  /** After current CSV (or sample) load — quick actions in copilot bar. */
+  /** After current CSV (or sample) load — quick actions in AI assistant bar. */
   const [csvUploadSuccessTip, setCsvUploadSuccessTip] = useState(null);
   const [history, setHistory] = useState([]);
   const [dismissed, setDismissed] = useState(false);
@@ -3994,7 +3998,7 @@ Return ONLY the SQL, no explanation.`;
       reply: "",
       pending: true,
     });
-    const copilotReply = tryHandleCopilotCommand(trimmed, {
+    const handledCommandReply = tryHandleCopilotCommand(trimmed, {
       columns,
       statChanges,
       riskFindings,
@@ -4012,7 +4016,7 @@ Return ONLY the SQL, no explanation.`;
     const base = ++chatMessageIdRef.current;
     const assistantId = `${base}-a`;
     setCommandResult({
-      copilot: copilotReply != null,
+      assistantCommand: handledCommandReply != null,
       query: trimmed,
       replyPreview: "Analyzing...",
     });
@@ -4050,7 +4054,7 @@ Return ONLY the SQL, no explanation.`;
         sourceLabel,
         tableLabel,
         impactLines,
-        copilotReply,
+        deterministicActionReply: handledCommandReply,
         workspaceSummary,
       });
       let finalText = "";
@@ -4061,7 +4065,7 @@ Return ONLY the SQL, no explanation.`;
         }
       } catch (e) {
         console.error(e);
-        finalText = copilotReply ?? chatReply(trimmed, chatContext);
+        finalText = handledCommandReply ?? chatReply(trimmed, chatContext);
       }
       setMessages((prev) =>
         prev.map((m) =>
@@ -4081,7 +4085,7 @@ Return ONLY the SQL, no explanation.`;
         pending: false,
       });
       setCommandResult({
-        copilot: copilotReply != null,
+        assistantCommand: handledCommandReply != null,
         query: trimmed,
         replyPreview: finalText.split("\n")[0]?.slice(0, 120) ?? "",
       });
@@ -4094,7 +4098,7 @@ Return ONLY the SQL, no explanation.`;
     }
     if (copilotSubmitGuardRef.current) return;
     copilotSubmitGuardRef.current = true;
-    console.log("Copilot send triggered:", copilotInput);
+    console.log("AI Assistant send triggered:", copilotInput);
     try {
       sendChatMessage(copilotInput);
       setCopilotInput("");
@@ -4171,7 +4175,7 @@ Return ONLY the SQL, no explanation.`;
     { id: "overview", label: "Overview" },
     { id: "about", label: "How it works" },
     { id: "sources", label: "Sources" },
-    { id: "chat", label: "Copilot" },
+    { id: "chat", label: "AI Assistant" },
     { id: "governance", label: "Governance" },
     { id: "security", label: "🔒 Security" },
     { id: "settings", label: "Settings" },
@@ -5780,7 +5784,7 @@ Return ONLY the SQL, no explanation.`;
                       }}
                     >
                       No HIGH risk changes match this filter. Try{" "}
-                      <strong>show all changes</strong> in the copilot bar.
+                      <strong>show all changes</strong> in the AI assistant bar.
                     </div>
                   ) : displayStatChangesForFeed.length === 0 ? (
                     <div
@@ -7590,7 +7594,7 @@ Return ONLY the SQL, no explanation.`;
                 </li>
                 <li>
                   Explore <strong>Recent changes</strong>, the grid, and the
-                  bottom <strong>copilot</strong> bar to filter, explain, and
+                  bottom <strong>AI assistant</strong> bar to filter, explain, and
                   open row-level drill-downs.
                 </li>
               </ol>
@@ -7850,7 +7854,7 @@ Return ONLY the SQL, no explanation.`;
                 <li style={{ marginBottom: "8px" }}>
                   Data warehouse integrations
                 </li>
-                <li>AI copilot</li>
+                <li>AI Assistant</li>
               </ul>
             </div>
           </section>
@@ -10784,11 +10788,11 @@ Return ONLY the SQL, no explanation.`;
                 margin: "0 0 8px",
               }}
             >
-              Copilot history
+              AI Assistant history
             </h2>
             <p style={{ ...governanceMutedStyle, marginBottom: "16px" }}>
               Commands run from the sticky bar below. This tab is the full
-              transcript; deterministic copilot actions also update Overview,
+              transcript; deterministic AI assistant actions also update Overview,
               Sources, and filters.
             </p>
 
@@ -10816,8 +10820,8 @@ Return ONLY the SQL, no explanation.`;
                     lineHeight: 1.5,
                   }}
                 >
-                  Try the bar: compare, high risk only, go to sources, connect
-                  snowflake, explain why email is risky…
+                  Try the AI Assistant bar: compare, high risk only, go to
+                  sources, connect snowflake, explain why email is risky…
                 </p>
               ) : (
                 messages.map((m) => (
@@ -10884,7 +10888,8 @@ Return ONLY the SQL, no explanation.`;
                 lineHeight: 1.45,
               }}
             >
-              Type commands in the bottom bar — it stays visible on every tab.
+              Type commands in the AI Assistant bar — it stays visible on every
+              tab.
             </p>
           </section>
         )}
@@ -11325,7 +11330,7 @@ Return ONLY the SQL, no explanation.`;
                         marginRight: "6px",
                       }}
                     >
-                      {m.role === "user" ? "You" : "Copilot"}
+                      {m.role === "user" ? "You" : "AI Assistant"}
                     </span>
                     {m.analyzing ? (
                       <span>
@@ -11360,6 +11365,7 @@ Return ONLY the SQL, no explanation.`;
                 fontFamily: "inherit",
                 flexShrink: 0,
               }}
+              title="Show or hide AI Assistant message history"
               aria-expanded={copilotHistoryExpanded}
             >
               {copilotHistoryExpanded ? "Hide" : "History"}
@@ -11454,7 +11460,7 @@ Return ONLY the SQL, no explanation.`;
                   textDecoration: "underline",
                 }}
               >
-                Open in Copilot →
+                Open in AI Assistant →
               </button>
             </div>
           ) : null}
@@ -11475,7 +11481,7 @@ Return ONLY the SQL, no explanation.`;
               <button
                 key={s.id}
                 type="button"
-                className="copilot-bar-chip"
+                className="ai-assistant-bar-chip"
                 onClick={() => sendChatMessage(s.prompt)}
               >
                 {s.label}
@@ -11498,7 +11504,7 @@ Return ONLY the SQL, no explanation.`;
           >
             <input
               type="text"
-              name="unlockdb-copilot-command"
+              name="unlockdb-ai-assistant-command"
               autoComplete="off"
               spellCheck={false}
               value={copilotInput}
@@ -11514,8 +11520,8 @@ Return ONLY the SQL, no explanation.`;
                   handleCopilotSend(null);
                 }
               }}
-              placeholder="Command — e.g. compare customers today vs yesterday, high risk only, go to sources…"
-              aria-label="Copilot command"
+              placeholder="Ask AI Assistant — e.g. what changed?, show risks, what should I fix first?"
+              aria-label="AI Assistant command"
               className="unlockdb-field"
               style={{
                 flex: 1,
@@ -11582,10 +11588,10 @@ Return ONLY the SQL, no explanation.`;
                 </strong>
               </span>
             ) : null}
-            {commandResult?.copilot ? (
-              <span style={{ opacity: 0.9 }}>Last: copilot action</span>
+            {commandResult?.assistantCommand ? (
+              <span style={{ opacity: 0.9 }}>Last: AI assistant action</span>
             ) : commandResult ? (
-              <span style={{ opacity: 0.9 }}>Last: assistant reply</span>
+              <span style={{ opacity: 0.9 }}>Last: AI Assistant reply</span>
             ) : null}
           </div>
         </div>

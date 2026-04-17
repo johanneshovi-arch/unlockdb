@@ -32,7 +32,7 @@ function parseClaudeAnalysisJsonText(raw) {
   return null;
 }
 
-const CHAT_SYSTEM_PROMPT = `You are a data copilot for Unlockdb. 
+const CHAT_SYSTEM_PROMPT = `You are an AI assistant for Unlockdb. 
 You help data engineers understand data changes 
 and their impact. 
 
