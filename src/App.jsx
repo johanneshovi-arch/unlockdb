@@ -1367,6 +1367,13 @@ function buildCopilotContextPack(ctx, meta) {
   if (meta.copilotReply) {
     lines.push(`Recent UI action: ${meta.copilotReply}`);
   }
+  if (ctx.rowLevelDiff != null && ctx.dataQualityIssues != null) {
+    lines.push(
+      `Row-level diff & quality (JSON): ${JSON.stringify(
+        rowDiffForClaudePayload(ctx.rowLevelDiff, ctx.dataQualityIssues)
+      )}`
+    );
+  }
   let out = lines.join("\n");
   if (out.length > 3800) {
     out = `${out.slice(0, 3797)}...`;
@@ -2076,6 +2083,360 @@ function analyzeDatasetDiff(
       : "No material changes detected between previous and current datasets.";
 
   return { summaryParagraph, summaryBullets, riskFindings, schemaChanges };
+}
+
+/** First column whose key looks like a stable row identifier. */
+function findIdentifierColumnKey(columns) {
+  if (!Array.isArray(columns) || columns.length === 0) return null;
+  const idLike =
+    /\b(id|key|code|uuid|guid)\b|(^|_)(id|key|code|nr|num)(_|$)/i;
+  for (const c of columns) {
+    const k = String(c.key ?? "");
+    if (idLike.test(k)) return c.key;
+  }
+  return null;
+}
+
+function cellEqual(a, b) {
+  if (a === b) return true;
+  if (a == null && b == null) return true;
+  return String(a) === String(b);
+}
+
+/**
+ * Row-level diff: new rows, removed rows, value changes (per column examples).
+ * With an identifier column: match by that value. Otherwise align by row index
+ * (tail rows = added/removed; same index = candidate for value change).
+ */
+function analyzeRowLevelDiff(previousData, currentData, columns) {
+  const empty = {
+    newRows: { count: 0, examples: [] },
+    removedRows: { count: 0, examples: [] },
+    changedValues: { count: 0, byColumn: {} },
+    mode: "none",
+    idKey: null,
+  };
+  if (!Array.isArray(previousData) || !Array.isArray(currentData)) return empty;
+  if (!columns?.length) return { ...empty, mode: "no-columns" };
+
+  const colKeys = columns.map((c) => c.key);
+  const idKey = findIdentifierColumnKey(columns);
+
+  if (idKey != null) {
+    const prevMap = new Map();
+    const currMap = new Map();
+    previousData.forEach((row) => {
+      const v = row?.[idKey];
+      if (v === null || v === undefined || v === "") return;
+      prevMap.set(String(v), row);
+    });
+    currentData.forEach((row) => {
+      const v = row?.[idKey];
+      if (v === null || v === undefined || v === "") return;
+      currMap.set(String(v), row);
+    });
+
+    const newExamples = [];
+    let newCount = 0;
+    for (const [, row] of currMap) {
+      const id = String(row[idKey]);
+      if (!prevMap.has(id)) {
+        newCount++;
+        if (newExamples.length < 3) newExamples.push(row);
+      }
+    }
+
+    const remExamples = [];
+    let remCount = 0;
+    for (const [, row] of prevMap) {
+      const id = String(row[idKey]);
+      if (!currMap.has(id)) {
+        remCount++;
+        if (remExamples.length < 3) remExamples.push(row);
+      }
+    }
+
+    const byColumn = {};
+    const changedIds = new Set();
+    for (const id of currMap.keys()) {
+      if (!prevMap.has(id)) continue;
+      const a = prevMap.get(id);
+      const b = currMap.get(id);
+      let rowChanged = false;
+      for (const ck of colKeys) {
+        if (!cellEqual(a?.[ck], b?.[ck])) {
+          rowChanged = true;
+          if (!byColumn[ck]) byColumn[ck] = { count: 0, examples: [] };
+          byColumn[ck].count++;
+          if (byColumn[ck].examples.length < 3) {
+            byColumn[ck].examples.push({
+              before: a?.[ck] ?? "",
+              after: b?.[ck] ?? "",
+            });
+          }
+        }
+      }
+      if (rowChanged) changedIds.add(id);
+    }
+
+    return {
+      newRows: { count: newCount, examples: newExamples },
+      removedRows: { count: remCount, examples: remExamples },
+      changedValues: { count: changedIds.size, byColumn },
+      mode: "id",
+      idKey,
+    };
+  }
+
+  const n = Math.min(previousData.length, currentData.length);
+  const byColumnIdx = {};
+  let changedRows = 0;
+  for (let i = 0; i < n; i++) {
+    const a = previousData[i];
+    const b = currentData[i];
+    let rowChanged = false;
+    for (const ck of colKeys) {
+      if (!cellEqual(a?.[ck], b?.[ck])) {
+        rowChanged = true;
+        if (!byColumnIdx[ck]) byColumnIdx[ck] = { count: 0, examples: [] };
+        byColumnIdx[ck].count++;
+        if (byColumnIdx[ck].examples.length < 3) {
+          byColumnIdx[ck].examples.push({
+            before: a?.[ck] ?? "",
+            after: b?.[ck] ?? "",
+          });
+        }
+      }
+    }
+    if (rowChanged) changedRows++;
+  }
+  const newCount = Math.max(0, currentData.length - previousData.length);
+  const newExamples = currentData.slice(
+    previousData.length,
+    previousData.length + 3
+  );
+  const remCount = Math.max(0, previousData.length - currentData.length);
+  const remExamples = previousData.slice(
+    currentData.length,
+    currentData.length + 3
+  );
+
+  return {
+    newRows: { count: newCount, examples: newExamples },
+    removedRows: { count: remCount, examples: remExamples },
+    changedValues: { count: changedRows, byColumn: byColumnIdx },
+    mode: "index",
+    idKey: null,
+  };
+}
+
+function stableRowFingerprint(row, columnKeys) {
+  const o = {};
+  for (const k of columnKeys) {
+    o[k] = row?.[k] ?? null;
+  }
+  return JSON.stringify(o);
+}
+
+/**
+ * Data quality heuristics on current snapshot (and nulls use current).
+ */
+function analyzeDataQualityIssues(_previousData, currentData, columns) {
+  const issues = [];
+  if (!columns?.length || !Array.isArray(currentData) || currentData.length === 0) {
+    return issues;
+  }
+
+  for (const col of columns) {
+    const pctNum = parsePercent(calculateNullPercentage(currentData, col.key));
+    if (pctNum > 0) {
+      const nulls = currentData.filter(
+        (r) =>
+          r[col.key] === null ||
+          r[col.key] === undefined ||
+          r[col.key] === ""
+      ).length;
+      issues.push({
+        id: `dq-missing-${col.key}`,
+        kind: "missing",
+        severity: pctNum >= 20 ? "high" : "medium",
+        columnKey: col.key,
+        columnLabel: col.label,
+        nullCount: nulls,
+        nullPctLabel: calculateNullPercentage(currentData, col.key),
+        message: `${col.label}: ${nulls} missing values (${calculateNullPercentage(currentData, col.key)})`,
+      });
+    }
+  }
+
+  for (const col of columns) {
+    const rawVals = currentData
+      .map((r) => r[col.key])
+      .filter((v) => v !== null && v !== undefined && String(v).trim() !== "");
+    const values = [...new Set(rawVals.map((v) => String(v)))];
+    if (values.length < 2) continue;
+
+    const byLower = new Map();
+    for (const v of values) {
+      const L = v.toLowerCase();
+      if (!byLower.has(L)) byLower.set(L, new Set());
+      byLower.get(L).add(v);
+    }
+    for (const [, set] of byLower) {
+      if (set.size > 1) {
+        const ex = [...set].slice(0, 2);
+        issues.push({
+          id: `dq-case-${col.key}`,
+          kind: "format_case",
+          severity: "medium",
+          columnKey: col.key,
+          columnLabel: col.label,
+          message: `${col.label}: inconsistent formatting detected`,
+          examples: [`e.g. '${ex[0]}' and '${ex[1]}' in same column`],
+        });
+        break;
+      }
+    }
+
+    const isoLike = /^\d{4}-\d{2}-\d{2}/;
+    const dmyLike = /^\d{1,2}[./]\d{1,2}[./]\d{2,4}/;
+    let hasIso = false;
+    let hasDmy = false;
+    for (const v of values) {
+      if (isoLike.test(v)) hasIso = true;
+      if (dmyLike.test(v)) hasDmy = true;
+    }
+    if (hasIso && hasDmy) {
+      issues.push({
+        id: `dq-date-${col.key}`,
+        kind: "format_date",
+        severity: "medium",
+        columnKey: col.key,
+        columnLabel: col.label,
+        message: `${col.label}: inconsistent formatting detected`,
+        examples: ["e.g. ISO dates (2024-01-01) and dotted dates (01.01.2024)"],
+      });
+    }
+
+    let hasCommaThousands = false;
+    let hasPlainLongNumber = false;
+    for (const v of values) {
+      if (/\d,\d{3}\b/.test(v)) hasCommaThousands = true;
+      if (/^\d{4,}$/.test(v.replace(/\s/g, ""))) hasPlainLongNumber = true;
+    }
+    if (hasCommaThousands && hasPlainLongNumber) {
+      issues.push({
+        id: `dq-num-${col.key}`,
+        kind: "format_number",
+        severity: "medium",
+        columnKey: col.key,
+        columnLabel: col.label,
+        message: `${col.label}: inconsistent formatting detected`,
+        examples: ["e.g. '1,000' vs '1000' style numbers"],
+      });
+    }
+  }
+
+  const colKeys = columns.map((c) => c.key);
+  const seen = new Map();
+  for (const row of currentData) {
+    const fp = stableRowFingerprint(row, colKeys);
+    seen.set(fp, (seen.get(fp) ?? 0) + 1);
+  }
+  let duplicateExtra = 0;
+  for (const c of seen.values()) {
+    if (c > 1) duplicateExtra += c - 1;
+  }
+  if (duplicateExtra > 0) {
+    issues.push({
+      id: "dq-dup-rows",
+      kind: "duplicate_rows",
+      severity: duplicateExtra >= 5 ? "high" : "medium",
+      columnKey: null,
+      columnLabel: null,
+      duplicateExtra,
+      message: `${duplicateExtra} duplicate row${duplicateExtra === 1 ? "" : "s"} detected`,
+    });
+  }
+
+  return issues;
+}
+
+function RowDiffMiniTable({ rows, columns, maxCols = 5 }) {
+  if (!rows?.length) return null;
+  const keys = (columns ?? []).slice(0, maxCols).map((c) => c.key);
+  if (!keys.length) return null;
+  return (
+    <table
+      style={{
+        width: "100%",
+        borderCollapse: "collapse",
+        fontSize: "11px",
+        marginTop: "10px",
+        border: "1px solid var(--border)",
+        borderRadius: "6px",
+        overflow: "hidden",
+        background: "var(--code-bg)",
+      }}
+    >
+      <thead>
+        <tr>
+          {keys.map((k) => (
+            <th
+              key={k}
+              style={{
+                textAlign: "left",
+                padding: "6px 8px",
+                borderBottom: "1px solid var(--border)",
+                color: "var(--text-muted)",
+                fontWeight: 600,
+              }}
+            >
+              {(columns ?? []).find((c) => c.key === k)?.label ?? k}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, ri) => (
+          <tr key={ri}>
+            {keys.map((k) => (
+              <td
+                key={k}
+                style={{
+                  padding: "6px 8px",
+                  borderTop: "1px solid var(--border)",
+                  color: "var(--text)",
+                  maxWidth: "140px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={String(row?.[k] ?? "")}
+              >
+                {String(row?.[k] ?? "—")}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function rowDiffForClaudePayload(rowLevelDiff, qualityIssues) {
+  return {
+    newRowCount: rowLevelDiff.newRows.count,
+    removedRowCount: rowLevelDiff.removedRows.count,
+    changedValueCount: rowLevelDiff.changedValues.count,
+    diffMode: rowLevelDiff.mode,
+    idKey: rowLevelDiff.idKey ?? null,
+    qualityIssues: (qualityIssues ?? []).slice(0, 20).map((q) => ({
+      kind: q.kind,
+      severity: q.severity,
+      message: q.message,
+    })),
+  };
 }
 
 const demoUsers = [
@@ -2933,6 +3294,14 @@ function App() {
     return { total: list.length, withChanges, highRisk };
   }, [tableBrowserList]);
   const overviewHasData = currentData.length > 0 && columns.length > 0;
+  const rowLevelDiff = useMemo(
+    () => analyzeRowLevelDiff(previousData, currentData, columns),
+    [previousData, currentData, columns]
+  );
+  const dataQualityIssues = useMemo(
+    () => analyzeDataQualityIssues(previousData, currentData, columns),
+    [previousData, currentData, columns]
+  );
   const diffSummaryShort =
     (diffSummaryParagraph && diffSummaryParagraph.trim()) ||
     (diffSummaryBullets.length > 0
@@ -3058,6 +3427,8 @@ function App() {
     diffSummaryBullets,
     diffSummaryParagraph,
     riskFindings,
+    rowLevelDiff,
+    dataQualityIssues,
   };
 
   useEffect(() => {
@@ -3127,12 +3498,18 @@ function App() {
           previousData,
           currentData
         ).slice(0, 5);
-        const ctx = buildExplainClaudeContext(
-          explainStatChange,
-          previousData,
-          currentData,
-          drillSlice
-        );
+        const ctx = {
+          ...buildExplainClaudeContext(
+            explainStatChange,
+            previousData,
+            currentData,
+            drillSlice
+          ),
+          rowDiffSummary: rowDiffForClaudePayload(
+            rowLevelDiff,
+            dataQualityIssues
+          ),
+        };
         const prompt =
           String(explainStatChange.changeText ?? "").trim() || base.title;
         const result = await askClaude(prompt, ctx);
@@ -3166,7 +3543,14 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [explainStatChange, riskFindings, previousData, currentData]);
+  }, [
+    explainStatChange,
+    riskFindings,
+    previousData,
+    currentData,
+    rowLevelDiff,
+    dataQualityIssues,
+  ]);
 
   useEffect(() => {
     if (previousData.length === 0 || currentData.length === 0) {
@@ -3187,12 +3571,18 @@ function App() {
             previousData,
             currentData
           ).slice(0, 5);
-          const ctx = buildExplainClaudeContext(
-            sc,
-            previousData,
-            currentData,
-            drillSlice
-          );
+          const ctx = {
+            ...buildExplainClaudeContext(
+              sc,
+              previousData,
+              currentData,
+              drillSlice
+            ),
+            rowDiffSummary: rowDiffForClaudePayload(
+              rowLevelDiff,
+              dataQualityIssues
+            ),
+          };
           const prompt = String(sc.changeText ?? "").trim();
           const result = await askClaude(prompt || "High-risk data change", ctx);
           if (cancelled) return;
@@ -3225,6 +3615,8 @@ function App() {
     previousData,
     currentData,
     statChanges,
+    rowLevelDiff,
+    dataQualityIssues,
   ]);
 
   useEffect(() => {
@@ -4654,6 +5046,446 @@ Return ONLY the SQL, no explanation.`;
                       ×
                     </button>
                   </div>
+                ) : null}
+
+                {overviewHasData ? (
+                  <>
+                    <div
+                      id="overview-row-diff-summary"
+                      style={{
+                        maxWidth: "44rem",
+                        margin: "0 auto 16px",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "8px",
+                        alignItems: "center",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="app-ghost-btn"
+                        onClick={() =>
+                          document
+                            .getElementById("overview-row-new")
+                            ?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            })
+                        }
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          borderRadius: "999px",
+                          border: "1px solid rgba(34, 197, 94, 0.35)",
+                          background: "rgba(34, 197, 94, 0.08)",
+                          color: "#86efac",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        ➕ {rowLevelDiff.newRows.count} new
+                      </button>
+                      <button
+                        type="button"
+                        className="app-ghost-btn"
+                        onClick={() =>
+                          document
+                            .getElementById("overview-row-removed")
+                            ?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            })
+                        }
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          borderRadius: "999px",
+                          border: "1px solid rgba(245, 158, 11, 0.4)",
+                          background: "rgba(245, 158, 11, 0.08)",
+                          color: "#fcd34d",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        ➖ {rowLevelDiff.removedRows.count} removed
+                      </button>
+                      <button
+                        type="button"
+                        className="app-ghost-btn"
+                        onClick={() =>
+                          document
+                            .getElementById("overview-row-changed")
+                            ?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            })
+                        }
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          borderRadius: "999px",
+                          border: "1px solid rgba(59, 130, 246, 0.4)",
+                          background: "rgba(59, 130, 246, 0.1)",
+                          color: "#93c5fd",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        ✏️ {rowLevelDiff.changedValues.count} changed
+                      </button>
+                      <button
+                        type="button"
+                        className="app-ghost-btn"
+                        onClick={() =>
+                          document
+                            .getElementById("overview-data-quality")
+                            ?.scrollIntoView({
+                              behavior: "smooth",
+                              block: "start",
+                            })
+                        }
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          borderRadius: "999px",
+                          border: `1px solid ${
+                            dataQualityIssues.some((q) => q.severity === "high")
+                              ? "rgba(239, 68, 68, 0.45)"
+                              : dataQualityIssues.length
+                                ? "rgba(245, 158, 11, 0.4)"
+                                : "var(--border)"
+                          }`,
+                          background: dataQualityIssues.some(
+                            (q) => q.severity === "high"
+                          )
+                            ? "rgba(239, 68, 68, 0.08)"
+                            : dataQualityIssues.length
+                              ? "rgba(245, 158, 11, 0.08)"
+                              : "var(--social-bg)",
+                          color: dataQualityIssues.some(
+                            (q) => q.severity === "high"
+                          )
+                            ? "#fca5a5"
+                            : dataQualityIssues.length
+                              ? "#fcd34d"
+                              : "var(--text-muted)",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        ⚠️ {dataQualityIssues.length} quality issue
+                        {dataQualityIssues.length === 1 ? "" : "s"}
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        maxWidth: "44rem",
+                        margin: "0 auto 24px",
+                        paddingBottom: "8px",
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      <h2
+                        id="overview-row-new"
+                        style={{
+                          ...governanceH2Style,
+                          fontSize: "17px",
+                          margin: "0 0 10px",
+                          scrollMarginTop: "72px",
+                        }}
+                      >
+                        ➕ New rows
+                      </h2>
+                      {rowLevelDiff.newRows.count > 0 ? (
+                        <div
+                          style={{
+                            ...insightCardStyle,
+                            marginBottom: "16px",
+                            borderLeft: "3px solid #22c55e",
+                          }}
+                        >
+                          <p
+                            style={{
+                              margin: "0 0 8px",
+                              fontSize: "14px",
+                              fontWeight: 600,
+                              color: "var(--text-h)",
+                            }}
+                          >
+                            ➕ {rowLevelDiff.newRows.count} new row
+                            {rowLevelDiff.newRows.count === 1 ? "" : "s"} added
+                          </p>
+                          <RowDiffMiniTable
+                            rows={rowLevelDiff.newRows.examples}
+                            columns={columns}
+                          />
+                        </div>
+                      ) : (
+                        <p
+                          style={{
+                            margin: "0 0 20px",
+                            fontSize: "13px",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          No new rows
+                        </p>
+                      )}
+
+                      <h2
+                        id="overview-row-removed"
+                        style={{
+                          ...governanceH2Style,
+                          fontSize: "17px",
+                          margin: "20px 0 10px",
+                          scrollMarginTop: "72px",
+                        }}
+                      >
+                        ➖ Removed rows
+                      </h2>
+                      {rowLevelDiff.removedRows.count > 0 ? (
+                        <div
+                          style={{
+                            ...insightCardStyle,
+                            marginBottom: "12px",
+                            borderLeft: "3px solid #f59e0b",
+                            background: "rgba(245, 158, 11, 0.06)",
+                          }}
+                        >
+                          <p
+                            style={{
+                              margin: "0 0 8px",
+                              fontSize: "14px",
+                              fontWeight: 600,
+                              color: "#fcd34d",
+                            }}
+                          >
+                            ➖ {rowLevelDiff.removedRows.count} row
+                            {rowLevelDiff.removedRows.count === 1
+                              ? ""
+                              : "s"}{" "}
+                            removed
+                          </p>
+                          <RowDiffMiniTable
+                            rows={rowLevelDiff.removedRows.examples}
+                            columns={columns}
+                          />
+                          <p
+                            style={{
+                              margin: "10px 0 0",
+                              fontSize: "12px",
+                              lineHeight: 1.45,
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            Note: Row removal may be intentional (e.g. archived
+                            records). Review before flagging as risk.
+                          </p>
+                        </div>
+                      ) : (
+                        <p
+                          style={{
+                            margin: "0 0 20px",
+                            fontSize: "13px",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          No removed rows
+                        </p>
+                      )}
+
+                      <h2
+                        id="overview-row-changed"
+                        style={{
+                          ...governanceH2Style,
+                          fontSize: "17px",
+                          margin: "20px 0 10px",
+                          scrollMarginTop: "72px",
+                        }}
+                      >
+                        ✏️ Changed values
+                      </h2>
+                      {rowLevelDiff.changedValues.count > 0 ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "12px",
+                            marginBottom: "12px",
+                          }}
+                        >
+                          {Object.entries(
+                            rowLevelDiff.changedValues.byColumn
+                          )
+                            .filter(([, info]) => info?.count > 0)
+                            .map(([colKey, info]) => {
+                            const label =
+                              columns.find((c) => c.key === colKey)?.label ??
+                              colKey;
+                            return (
+                              <div
+                                key={colKey}
+                                style={{
+                                  ...insightCardStyle,
+                                  margin: 0,
+                                  borderLeft: "3px solid #3b82f6",
+                                }}
+                              >
+                                <p
+                                  style={{
+                                    margin: "0 0 10px",
+                                    fontSize: "14px",
+                                    fontWeight: 600,
+                                    color: "var(--text-h)",
+                                  }}
+                                >
+                                  ✏️ {label}: {info.count} value
+                                  {info.count === 1 ? "" : "s"} changed
+                                </p>
+                                <div
+                                  style={{
+                                    fontSize: "12px",
+                                    color: "var(--text)",
+                                    lineHeight: 1.5,
+                                  }}
+                                >
+                                  {(info.examples ?? []).map((ex, i) => (
+                                    <div
+                                      key={i}
+                                      style={{
+                                        marginBottom: "6px",
+                                        padding: "8px 10px",
+                                        borderRadius: "6px",
+                                        background: "var(--code-bg)",
+                                        border: "1px solid var(--border)",
+                                      }}
+                                    >
+                                      Before:{" "}
+                                      <code
+                                        style={{
+                                          fontSize: "11px",
+                                          color: "#fca5a5",
+                                        }}
+                                      >
+                                        {String(ex.before)}
+                                      </code>
+                                      {"  →  "}
+                                      After:{" "}
+                                      <code
+                                        style={{
+                                          fontSize: "11px",
+                                          color: "#86efac",
+                                        }}
+                                      >
+                                        {String(ex.after)}
+                                      </code>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p
+                          style={{
+                            margin: "0 0 20px",
+                            fontSize: "13px",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          No value changes detected
+                        </p>
+                      )}
+                      <p
+                        style={{
+                          margin: "0 0 24px",
+                          fontSize: "12px",
+                          lineHeight: 1.45,
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        Note: Value changes may reflect normal business updates.{" "}
+                        {"Mark as 'known' if expected."}
+                      </p>
+
+                      <h2
+                        id="overview-data-quality"
+                        style={{
+                          ...governanceH2Style,
+                          fontSize: "17px",
+                          margin: "0 0 10px",
+                          scrollMarginTop: "72px",
+                        }}
+                      >
+                        🔍 Data quality issues
+                      </h2>
+                      {dataQualityIssues.length > 0 ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "10px",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          {dataQualityIssues.map((issue) => (
+                            <div
+                              key={issue.id}
+                              style={{
+                                ...insightCardStyle,
+                                margin: 0,
+                                borderLeft:
+                                  issue.severity === "high"
+                                    ? "3px solid #ef4444"
+                                    : "3px solid #f59e0b",
+                              }}
+                            >
+                              <p
+                                style={{
+                                  margin: 0,
+                                  fontSize: "13px",
+                                  color: "var(--text)",
+                                  lineHeight: 1.45,
+                                }}
+                              >
+                                ⚠️ {issue.message}
+                              </p>
+                              {issue.examples?.length ? (
+                                <ul
+                                  style={{
+                                    margin: "8px 0 0",
+                                    paddingLeft: "1.1rem",
+                                    fontSize: "12px",
+                                    color: "var(--text-muted)",
+                                  }}
+                                >
+                                  {issue.examples.map((ex) => (
+                                    <li key={ex}>{ex}</li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p
+                          style={{
+                            margin: "0 0 8px",
+                            fontSize: "13px",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          No automatic quality issues flagged.
+                        </p>
+                      )}
+                    </div>
+                  </>
                 ) : null}
 
                 <h2
