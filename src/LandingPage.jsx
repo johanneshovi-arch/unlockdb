@@ -282,7 +282,7 @@ export default function LandingPage() {
         </section>
 
         <section
-          className="landing-section"
+          className="landing-section landing-section-pricing"
           aria-labelledby="pricing-title"
         >
           <div className="landing-inner landing-pricing-inner">
@@ -311,13 +311,15 @@ export default function LandingPage() {
               </article>
 
               <article className="landing-price-card landing-price-card--pro">
-                <span className="landing-price-badge">Most popular</span>
-                <div className="landing-price-card-top">
-                  <span className="landing-price-label">Pro</span>
-                  <p className="landing-price-amount">$49/mo</p>
-                  <p className="landing-price-period">
-                    Early access: $29/mo
-                  </p>
+                <div className="landing-price-card-head">
+                  <div className="landing-price-card-top">
+                    <span className="landing-price-label">Pro</span>
+                    <p className="landing-price-amount">$49/mo</p>
+                    <p className="landing-price-period">
+                      Early access: $29/mo
+                    </p>
+                  </div>
+                  <span className="landing-price-badge">Most popular</span>
                 </div>
                 <ul className="landing-price-features">
                   <li>Everything in Free</li>

@@ -546,13 +546,25 @@
 }
 
 /* —— Pricing —— */
+.landing-section-pricing {
+  padding-top: 60px;
+  padding-bottom: 48px;
+}
+
+.landing-section-pricing .landing-section-title {
+  margin-bottom: 12px;
+}
+
 .landing-pricing-inner {
   max-width: 900px;
 }
 
 .landing-pricing-sub {
   text-align: center;
-  margin: -16px auto 28px;
+  margin-top: 0;
+  margin-bottom: 28px;
+  margin-left: auto;
+  margin-right: auto;
   font-size: 15px;
   color: var(--text-muted);
 }
@@ -577,11 +589,11 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  height: 100%;
   padding: 22px 18px 20px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--social-bg);
-  min-height: 100%;
 }
 
 .landing-price-card--pro {
@@ -595,36 +607,38 @@
   );
 }
 
+.landing-price-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.landing-price-card-head .landing-price-card-top {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
 .landing-price-badge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  flex-shrink: 0;
+  align-self: flex-start;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #fff;
   background: var(--accent);
-  padding: 4px 8px;
+  padding: 5px 9px;
   border-radius: 6px;
+  line-height: 1.2;
+  margin-top: 1px;
 }
 
 .landing-price-card-top {
   margin-bottom: 16px;
-}
-
-.landing-price-card--pro .landing-price-card-top {
-  padding-right: 108px;
-}
-
-@media (max-width: 900px) {
-  .landing-price-card--pro {
-    padding-top: 44px;
-  }
-
-  .landing-price-card--pro .landing-price-card-top {
-    padding-right: 0;
-  }
 }
 
 .landing-price-label {
