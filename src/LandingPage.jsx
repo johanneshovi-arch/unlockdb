@@ -135,6 +135,236 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <section
+          id="try-it-yourself"
+          className="landing-section"
+          aria-labelledby="try-title"
+        >
+          <div className="landing-inner">
+            <h2 id="try-title" className="landing-section-title">
+              Try it yourself — 2 minutes
+            </h2>
+            <p className="landing-try-intro">
+              Pick one path. No account required for the demo.
+            </p>
+
+            <div className="landing-try-path">
+              <h3 className="landing-try-path-title">
+                Path A: No data? Use our demo
+              </h3>
+              <ol className="landing-try-steps">
+                <li className="landing-try-step">
+                  <span className="landing-try-step-icon" aria-hidden>
+                    🖥️
+                  </span>
+                  <div className="landing-try-step-body">
+                    <strong>Go to the demo</strong>
+                    <div className="landing-try-step-actions">
+                      <Link to="/" className="landing-btn landing-btn-primary">
+                        Open demo →
+                      </Link>
+                    </div>
+                  </div>
+                </li>
+                <li className="landing-try-step">
+                  <span className="landing-try-step-icon" aria-hidden>
+                    📊
+                  </span>
+                  <div className="landing-try-step-body">
+                    <strong>Click Sources → Snowflake (Warehouse)</strong>
+                    <aside className="landing-tip-box" role="note">
+                      💡 This is a demo connection — no real Snowflake account
+                      needed. It loads a realistic example dataset.
+                    </aside>
+                  </div>
+                </li>
+                <li className="landing-try-step">
+                  <span className="landing-try-step-icon" aria-hidden>
+                    🔗
+                  </span>
+                  <div className="landing-try-step-body">
+                    <strong>Click &ldquo;Connect to Snowflake&rdquo;</strong>
+                    <p>Wait 1 second for demo data to load.</p>
+                  </div>
+                </li>
+                <li className="landing-try-step">
+                  <span className="landing-try-step-icon" aria-hidden>
+                    📋
+                  </span>
+                  <div className="landing-try-step-body">
+                    <strong>Click &ldquo;customers&rdquo; from the table list</strong>
+                  </div>
+                </li>
+                <li className="landing-try-step">
+                  <span className="landing-try-step-icon" aria-hidden>
+                    🤖
+                  </span>
+                  <div className="landing-try-step-body">
+                    <strong>See AI analysis appear automatically</strong>
+                    <p>
+                      Ask the AI Assistant anything: &ldquo;What should I fix
+                      first?&rdquo; &ldquo;What changed?&rdquo; &ldquo;Show me the
+                      risks.&rdquo;
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <div
+              className="landing-demo-callout"
+              role="region"
+              aria-label="What the demo shows"
+            >
+              <p className="landing-demo-callout-title">
+                🎯 What you&apos;ll see in the demo:
+              </p>
+              <ul className="landing-demo-callout-list">
+                <li>
+                  AI automatically detects that the email column has 20% missing
+                  values
+                </li>
+                <li>Explains why this matters (CRM sync may break)</li>
+                <li>Generates a SQL query to investigate</li>
+                <li>
+                  The AI Assistant answers your questions about the data
+                </li>
+              </ul>
+              <p className="landing-demo-callout-foot">
+                This simulates a real Snowflake environment with realistic data
+                changes.
+              </p>
+            </div>
+
+            <div className="landing-try-path">
+              <h3 className="landing-try-path-title">
+                Path B: Have your own data? Use CSV
+              </h3>
+              <ol className="landing-try-steps">
+                <li className="landing-try-step">
+                  <span className="landing-try-step-icon" aria-hidden>
+                    📤
+                  </span>
+                  <div className="landing-try-step-body">
+                    <strong>Export any table from your database as CSV</strong>
+                    <aside className="landing-tip-box" role="note">
+                      💡 In Snowflake: Results → Download → CSV
+                    </aside>
+                  </div>
+                </li>
+                <li className="landing-try-step">
+                  <span className="landing-try-step-icon" aria-hidden>
+                    📁
+                  </span>
+                  <div className="landing-try-step-body">
+                    <strong>Go to Sources → CSV (demo)</strong>
+                    <p>Upload your &ldquo;previous&rdquo; version.</p>
+                    <p>Upload your &ldquo;current&rdquo; version.</p>
+                  </div>
+                </li>
+                <li className="landing-try-step">
+                  <span className="landing-try-step-icon" aria-hidden>
+                    ⚡
+                  </span>
+                  <div className="landing-try-step-body">
+                    <strong>
+                      Unlockdb automatically compares them and shows what changed
+                    </strong>
+                    <aside className="landing-tip-box landing-tip-box--ok" role="note">
+                      ✅ Your data never leaves your browser — nothing is sent to
+                      our servers
+                    </aside>
+                  </div>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="landing-section"
+          aria-labelledby="pricing-title"
+        >
+          <div className="landing-inner landing-pricing-inner">
+            <h2 id="pricing-title" className="landing-section-title">
+              Simple, transparent pricing
+            </h2>
+            <p className="landing-pricing-sub">
+              Start free. Upgrade when ready.
+            </p>
+            <div className="landing-price-cards">
+              <article className="landing-price-card">
+                <div className="landing-price-card-top">
+                  <span className="landing-price-label">Free</span>
+                  <p className="landing-price-amount">$0</p>
+                  <p className="landing-price-period">Forever</p>
+                </div>
+                <ul className="landing-price-features">
+                  <li>CSV upload &amp; comparison</li>
+                  <li>AI change analysis</li>
+                  <li>Up to 3 tables</li>
+                  <li>7-day history</li>
+                </ul>
+                <Link to="/" className="landing-btn landing-btn-secondary landing-price-btn">
+                  Try free →
+                </Link>
+              </article>
+
+              <article className="landing-price-card landing-price-card--pro">
+                <span className="landing-price-badge">Most popular</span>
+                <div className="landing-price-card-top">
+                  <span className="landing-price-label">Pro</span>
+                  <p className="landing-price-amount">$49/mo</p>
+                  <p className="landing-price-period">
+                    Early access: $29/mo
+                  </p>
+                </div>
+                <ul className="landing-price-features">
+                  <li>Everything in Free</li>
+                  <li>Snowflake &amp; Databricks connection</li>
+                  <li>Unlimited tables</li>
+                  <li>30-day history</li>
+                  <li>AI Assistant (unlimited)</li>
+                  <li>SQL query generator</li>
+                  <li>Email support</li>
+                </ul>
+                <a
+                  href="mailto:hello@unlockdb.com?subject=Unlockdb%20Pro%20early%20access"
+                  className="landing-btn landing-btn-primary landing-price-btn"
+                >
+                  Get early access →
+                </a>
+              </article>
+
+              <article className="landing-price-card">
+                <div className="landing-price-card-top">
+                  <span className="landing-price-label">Enterprise</span>
+                  <p className="landing-price-amount">Custom</p>
+                  <p className="landing-price-period">For larger teams</p>
+                </div>
+                <ul className="landing-price-features">
+                  <li>Everything in Pro</li>
+                  <li>SSO &amp; audit logs</li>
+                  <li>Data Processing Agreement</li>
+                  <li>SLA guarantee</li>
+                  <li>Dedicated support</li>
+                  <li>Custom integrations</li>
+                </ul>
+                <a
+                  href="mailto:hello@unlockdb.com?subject=Unlockdb%20Enterprise"
+                  className="landing-btn landing-btn-secondary landing-price-btn"
+                >
+                  Contact us →
+                </a>
+              </article>
+            </div>
+            <p className="landing-pricing-foot">
+              🔒 All plans: your raw data never leaves your warehouse. Cancel
+              anytime. No long-term contracts.
+            </p>
+          </div>
+        </section>
+
         <section className="landing-section" aria-labelledby="compare-title">
           <div className="landing-inner">
             <h2 id="compare-title" className="landing-section-title">
