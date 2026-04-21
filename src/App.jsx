@@ -2761,35 +2761,6 @@ function evaluateContracts(contracts, previousData, currentData, columns) {
   return violations;
 }
 
-function buildNewContractLabel(rule, columnKey, value, columns) {
-  const col =
-    columnKey === "_row_count"
-      ? "Row count"
-      : columnKey === "*"
-        ? "Any column"
-        : contractColumnLabel(columns, columnKey);
-  switch (rule) {
-    case "not_null":
-      return columnKey === "*"
-        ? "Selected columns must not be null"
-        : `${col} must not be null`;
-    case "must_be_unique":
-      return `${col} must be unique`;
-    case "one_of":
-      return `${col} must be one of: ${value ?? ""}`.trim();
-    case "greater_than":
-      return `${col} must be greater than ${value ?? ""}`.trim();
-    case "less_than":
-      return `${col} must be less than ${value ?? ""}`.trim();
-    case "no_drop_pct":
-      return `Row count must not drop by more than ${value ?? ""}%`;
-    case "no_increase_pct":
-      return `Row count must not increase by more than ${value ?? ""}%`;
-    default:
-      return "Data contract rule";
-  }
-}
-
 function detectChatIntent(raw) {
   const q = raw.trim().toLowerCase();
   if (!q) return "empty";
@@ -3004,7 +2975,7 @@ function chatAnswerContracts(ctx) {
     return [
       "Data contracts",
       "",
-      "• No rules defined yet — open the Contracts tab to add expectations.",
+      "• No rules defined yet — open the Contracts tab to review expectations.",
     ].join("\n");
   }
   if (!ctx.currentData?.length) {
@@ -3238,7 +3209,7 @@ const governanceSectionStyle = {
   marginLeft: "auto",
   marginRight: "auto",
   marginBottom: 0,
-  paddingBottom: "140px",
+  paddingBottom: "160px",
   textAlign: "left",
 };
 
@@ -3270,7 +3241,7 @@ const securityPageWrapStyle = {
   marginRight: "auto",
   marginBottom: 0,
   textAlign: "left",
-  padding: "0 20px 140px",
+  padding: "0 20px 160px",
   boxSizing: "border-box",
 };
 
@@ -3288,7 +3259,7 @@ const overviewHelpSectionStyle = {
   marginRight: "auto",
   marginTop: "40px",
   paddingTop: "32px",
-  paddingBottom: "140px",
+  paddingBottom: "160px",
   borderTop: "1px solid var(--border)",
   textAlign: "left",
 };
@@ -3497,11 +3468,6 @@ function App() {
       label: "Row count must not drop by more than 10%",
     },
   ]);
-  const [contractFormColumn, setContractFormColumn] = useState("*");
-  const [contractFormRule, setContractFormRule] = useState("not_null");
-  const [contractFormValue, setContractFormValue] = useState("");
-  const [contractFormSeverity, setContractFormSeverity] =
-    useState("warning");
   const [history, setHistory] = useState([]);
   const [dismissed, setDismissed] = useState(false);
   const [overviewTrustBannerDismissed, setOverviewTrustBannerDismissed] =
@@ -4613,9 +4579,9 @@ Return ONLY the SQL, no explanation.`;
     { id: "about", label: "How it works" },
     { id: "sources", label: "Sources" },
     { id: "chat", label: "AI Assistant" },
+    { id: "contracts", label: "Contracts" },
     { id: "governance", label: "Governance" },
     { id: "settings", label: "Settings" },
-    { id: "contracts", label: "Contracts" },
     { id: "security", label: "🔒 Security" },
     { id: "audit", label: "Audit" },
     {
@@ -4724,7 +4690,7 @@ Return ONLY the SQL, no explanation.`;
                   : {}),
               }}
             >
-              {tab.id === "chat" ? "AI Assistant" : tab.label}
+              {tab.label}
               {tab.id === "security" ? (
                 <span
                   aria-hidden
@@ -8278,7 +8244,7 @@ Return ONLY the SQL, no explanation.`;
               maxWidth: "700px",
               margin: "0 auto",
               textAlign: "left",
-              paddingBottom: "140px",
+              paddingBottom: "160px",
             }}
           >
             <header style={{ marginBottom: "40px" }}>
@@ -10857,262 +10823,44 @@ Return ONLY the SQL, no explanation.`;
         )}
 
         {activeTab === "contracts" && (
-          <section style={governanceSectionStyle}>
-            <h2 style={governanceH2Style}>Data Contracts</h2>
-            <p style={{ ...governanceMutedStyle, marginBottom: "14px" }}>
-              Define what your data should look like — get alerted when it
-              doesn&apos;t.
-            </p>
-            <div
+          <section
+            style={{
+              maxWidth: "42rem",
+              margin: "0 auto",
+              paddingBottom: "160px",
+              textAlign: "left",
+            }}
+          >
+            <h1
               style={{
-                ...settingsPageSectionCardStyle,
-                marginBottom: "20px",
+                fontSize: "26px",
+                fontWeight: 700,
+                color: "var(--text-h)",
+                margin: "0 0 12px",
+                letterSpacing: "-0.02em",
               }}
             >
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "14px",
-                  lineHeight: 1.55,
-                  color: "var(--text)",
-                }}
-              >
-                Data contracts let you set expectations for your tables. Unlockdb
-                checks these automatically every time you load data.
-              </p>
-            </div>
-
-            <div style={settingsPageSectionCardStyle}>
-              <h3 style={{ ...governanceH3Style, marginTop: 0 }}>Add a rule</h3>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "16px",
-                }}
-              >
-                <label
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "6px",
-                    fontSize: "14px",
-                    color: "var(--text-h)",
-                    fontWeight: 600,
-                  }}
-                >
-                  Column
-                  <select
-                    className="unlockdb-field"
-                    style={settingsPageSelectStyle}
-                    value={
-                      contractFormRule === "no_drop_pct" ||
-                      contractFormRule === "no_increase_pct"
-                        ? "_row_count"
-                        : contractFormColumn
-                    }
-                    disabled={
-                      contractFormRule === "no_drop_pct" ||
-                      contractFormRule === "no_increase_pct"
-                    }
-                    onChange={(e) => setContractFormColumn(e.target.value)}
-                    aria-label="Contract column"
-                  >
-                    <option value="*">Any column</option>
-                    {columns.map((col) => (
-                      <option key={col.key} value={col.key}>
-                        {col.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 500,
-                      color: "var(--text-muted)",
-                      lineHeight: 1.45,
-                    }}
-                  >
-                    Row-count rules ignore this field.
-                  </span>
-                </label>
-
-                <label
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "6px",
-                    fontSize: "14px",
-                    color: "var(--text-h)",
-                    fontWeight: 600,
-                  }}
-                >
-                  Rule
-                  <select
-                    className="unlockdb-field"
-                    style={settingsPageSelectStyle}
-                    value={contractFormRule}
-                    onChange={(e) => setContractFormRule(e.target.value)}
-                    aria-label="Contract rule type"
-                  >
-                    <option value="not_null">Must not be null</option>
-                    <option value="must_be_unique">Must be unique</option>
-                    <option value="one_of">Must be one of these values</option>
-                    <option value="greater_than">Must be greater than</option>
-                    <option value="less_than">Must be less than</option>
-                    <option value="no_drop_pct">
-                      Row count must not drop by more than %
-                    </option>
-                    <option value="no_increase_pct">
-                      Row count must not increase by more than %
-                    </option>
-                  </select>
-                </label>
-
-                {contractFormRule === "one_of" ||
-                contractFormRule === "greater_than" ||
-                contractFormRule === "less_than" ||
-                contractFormRule === "no_drop_pct" ||
-                contractFormRule === "no_increase_pct" ? (
-                  <label
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "6px",
-                      fontSize: "14px",
-                      color: "var(--text-h)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Value
-                    <input
-                      type="text"
-                      className="unlockdb-field"
-                      value={contractFormValue}
-                      onChange={(e) => setContractFormValue(e.target.value)}
-                      placeholder={
-                        contractFormRule === "one_of"
-                          ? "FI, SE, NO, DK"
-                          : contractFormRule === "greater_than" ||
-                              contractFormRule === "less_than"
-                            ? "0"
-                            : "10"
-                      }
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: "8px",
-                        border: "1px solid var(--border)",
-                        fontSize: "14px",
-                        fontFamily: "inherit",
-                        background: "var(--bg)",
-                        color: "var(--text-h)",
-                        maxWidth: "100%",
-                        boxSizing: "border-box",
-                      }}
-                      aria-label="Contract rule value"
-                    />
-                  </label>
-                ) : null}
-
-                <label
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "6px",
-                    fontSize: "14px",
-                    color: "var(--text-h)",
-                    fontWeight: 600,
-                  }}
-                >
-                  Severity
-                  <select
-                    className="unlockdb-field"
-                    style={settingsPageSelectStyle}
-                    value={contractFormSeverity}
-                    onChange={(e) => setContractFormSeverity(e.target.value)}
-                    aria-label="Contract severity"
-                  >
-                    <option value="critical">Critical</option>
-                    <option value="warning">Warning</option>
-                    <option value="info">Info</option>
-                  </select>
-                </label>
-
-                <button
-                  type="button"
-                  className="app-primary-btn"
-                  disabled={
-                    ((contractFormRule === "one_of" ||
-                      contractFormRule === "greater_than" ||
-                      contractFormRule === "less_than" ||
-                      contractFormRule === "no_drop_pct" ||
-                      contractFormRule === "no_increase_pct") &&
-                      !String(contractFormValue).trim()) ||
-                    (contractFormColumn === "*" &&
-                      contractFormRule !== "not_null")
-                  }
-                  onClick={() => {
-                    const rule = contractFormRule;
-                    const column =
-                      rule === "no_drop_pct" || rule === "no_increase_pct"
-                        ? "_row_count"
-                        : contractFormColumn;
-                    if (column === "*" && rule !== "not_null") return;
-                    const needsVal =
-                      rule === "one_of" ||
-                      rule === "greater_than" ||
-                      rule === "less_than" ||
-                      rule === "no_drop_pct" ||
-                      rule === "no_increase_pct";
-                    const rawVal = String(contractFormValue).trim();
-                    if (needsVal && !rawVal) return;
-                    const value = needsVal ? rawVal : null;
-                    const label = buildNewContractLabel(
-                      rule,
-                      column,
-                      value,
-                      columns
-                    );
-                    setContracts((prev) => [
-                      ...prev,
-                      {
-                        id: `c-${Date.now()}`,
-                        column,
-                        rule,
-                        value,
-                        severity: contractFormSeverity,
-                        label,
-                      },
-                    ]);
-                    setContractFormValue("");
-                  }}
-                  style={{
-                    alignSelf: "flex-start",
-                    padding: "10px 18px",
-                    borderRadius: "8px",
-                    fontWeight: 600,
-                    fontSize: "14px",
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  Add rule +
-                </button>
-              </div>
-            </div>
-
-            <h3 style={{ ...governanceH3Style, marginTop: "8px" }}>
-              Active rules
-            </h3>
+              Data Contracts
+            </h1>
+            <p
+              style={{
+                fontSize: "15px",
+                lineHeight: 1.55,
+                color: "var(--text)",
+                margin: "0 0 24px",
+              }}
+            >
+              Define what your data should look like. Get alerted when
+              expectations are violated.
+            </p>
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: "10px",
-                marginBottom: "24px",
+                gap: "12px",
               }}
             >
-              {contracts.map((c) => {
+              {contracts.slice(0, 3).map((c) => {
                 const sev = String(c.severity).toLowerCase();
                 const badgeBg =
                   sev === "critical"
@@ -11143,71 +10891,46 @@ Return ONLY the SQL, no explanation.`;
                     key={c.id}
                     style={{
                       ...insightCardStyle,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: "12px",
+                      padding: "14px 16px",
                     }}
                   >
-                    <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          color: "var(--text-muted)",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        {colShow}
-                      </div>
-                      <p
-                        style={{
-                          margin: "0 0 8px",
-                          fontSize: "14px",
-                          fontWeight: 600,
-                          color: "var(--text-h)",
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {c.label}
-                      </p>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          letterSpacing: "0.04em",
-                          textTransform: "uppercase",
-                          padding: "3px 8px",
-                          borderRadius: "6px",
-                          background: badgeBg,
-                          color: badgeColor,
-                          border: badgeBorder,
-                        }}
-                      >
-                        {sev}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      aria-label={`Delete rule ${c.label}`}
-                      onClick={() =>
-                        setContracts((prev) => prev.filter((x) => x.id !== c.id))
-                      }
-                      className="app-ghost-btn"
+                    <div
                       style={{
-                        padding: "6px 12px",
-                        fontSize: "18px",
-                        lineHeight: 1,
-                        borderRadius: "8px",
-                        fontFamily: "inherit",
-                        cursor: "pointer",
-                        flexShrink: 0,
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        marginBottom: "6px",
                       }}
                     >
-                      ×
-                    </button>
+                      {colShow}
+                    </div>
+                    <p
+                      style={{
+                        margin: "0 0 10px",
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        color: "var(--text-h)",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {c.label}
+                    </p>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        padding: "3px 8px",
+                        borderRadius: "6px",
+                        background: badgeBg,
+                        color: badgeColor,
+                        border: badgeBorder,
+                      }}
+                    >
+                      {sev}
+                    </span>
                   </div>
                 );
               })}
@@ -11714,7 +11437,7 @@ Return ONLY the SQL, no explanation.`;
               maxWidth: "36rem",
               margin: "0 auto",
               textAlign: "left",
-              paddingBottom: "140px",
+              paddingBottom: "160px",
             }}
           >
             <h2
@@ -11837,7 +11560,7 @@ Return ONLY the SQL, no explanation.`;
               style={{
                 maxWidth: "28rem",
                 margin: "0 auto",
-                paddingBottom: "140px",
+                paddingBottom: "160px",
               }}
             >
               <h2
@@ -11954,7 +11677,7 @@ Return ONLY the SQL, no explanation.`;
               style={{
                 maxWidth: "420px",
                 margin: "0 auto",
-                paddingBottom: "140px",
+                paddingBottom: "160px",
               }}
             >
               <h2
@@ -12436,13 +12159,11 @@ Return ONLY the SQL, no explanation.`;
                 fontSize: "13px",
                 color: "var(--text)",
                 borderTop: "1px solid var(--border)",
-                background: "var(--bg)",
+                maxHeight: "120px",
+                overflowY: "auto",
                 marginBottom: "8px",
                 borderRadius: "8px",
                 textAlign: "left",
-                position: "relative",
-                maxHeight: "120px",
-                overflowY: "auto",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
               }}
@@ -12452,22 +12173,23 @@ Return ONLY the SQL, no explanation.`;
                 aria-label="Dismiss latest reply"
                 onClick={() => setLastReply(null)}
                 style={{
-                  position: "absolute",
-                  top: "6px",
-                  right: "8px",
-                  padding: "0 6px",
+                  float: "right",
+                  background: "none",
                   border: "none",
-                  background: "transparent",
-                  color: "var(--text-muted)",
+                  color: "var(--text)",
+                  cursor: "pointer",
                   fontSize: "16px",
                   lineHeight: 1,
-                  cursor: "pointer",
                   fontFamily: "inherit",
+                  padding: "0 4px",
                 }}
               >
                 ×
               </button>
-              <strong style={{ color: "var(--text-h)" }}>AI:</strong> {lastReply}
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
+                AI:{" "}
+              </span>
+              {lastReply}
             </div>
           ) : null}
 
