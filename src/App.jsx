@@ -3438,8 +3438,6 @@ function App() {
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
   /** Latest exchange shown in sticky bar (user + Unlockdb reply). */
   const [lastCopilotReply, setLastCopilotReply] = useState(null);
-  /** Latest assistant text shown above the sticky input (survives async). */
-  const [lastReply, setLastReply] = useState(null);
   /** After current CSV (or sample) load — quick actions in AI assistant bar. */
   const [csvUploadSuccessTip, setCsvUploadSuccessTip] = useState(null);
   const [contracts, setContracts] = useState([
@@ -4383,7 +4381,6 @@ Return ONLY the SQL, no explanation.`;
     const trimmed = text.trim();
     console.log("Sending:", trimmed);
     if (!trimmed) return;
-    setLastReply(null);
     if (messages.length === 0) {
       setCopilotHistoryExpanded(true);
     }
@@ -4485,7 +4482,6 @@ Return ONLY the SQL, no explanation.`;
         reply: finalText,
         pending: false,
       });
-      setLastReply(finalText);
       setCommandResult({
         assistantCommand: handledCommandReply != null,
         query: trimmed,
@@ -12037,10 +12033,7 @@ Return ONLY the SQL, no explanation.`;
               <button
                 type="button"
                 aria-label="Dismiss reply"
-                onClick={() => {
-                  setLastCopilotReply(null);
-                  setLastReply(null);
-                }}
+                onClick={() => setLastCopilotReply(null)}
                 style={{
                   position: "absolute",
                   top: "8px",
@@ -12139,47 +12132,6 @@ Return ONLY the SQL, no explanation.`;
               </button>
             ))}
           </div>
-
-          {lastReply ? (
-            <div
-              style={{
-                padding: "10px 16px",
-                fontSize: "13px",
-                color: "var(--text)",
-                borderTop: "1px solid var(--border)",
-                maxHeight: "120px",
-                overflowY: "auto",
-                marginBottom: "8px",
-                borderRadius: "8px",
-                textAlign: "left",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-            >
-              <button
-                type="button"
-                aria-label="Dismiss latest reply"
-                onClick={() => setLastReply(null)}
-                style={{
-                  float: "right",
-                  background: "none",
-                  border: "none",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                  lineHeight: 1,
-                  fontFamily: "inherit",
-                  padding: "0 4px",
-                }}
-              >
-                ×
-              </button>
-              <span style={{ color: "var(--accent)", fontWeight: 600 }}>
-                AI:{" "}
-              </span>
-              {lastReply}
-            </div>
-          ) : null}
 
           <form
             onSubmit={handleCopilotSend}
