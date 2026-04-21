@@ -4579,10 +4579,10 @@ Return ONLY the SQL, no explanation.`;
     { id: "about", label: "How it works" },
     { id: "sources", label: "Sources" },
     { id: "chat", label: "AI Assistant" },
-    { id: "contracts", label: "Contracts" },
     { id: "governance", label: "Governance" },
     { id: "settings", label: "Settings" },
     { id: "security", label: "🔒 Security" },
+    { id: "contracts", label: "Contracts" },
     { id: "audit", label: "Audit" },
     {
       id: "account",
@@ -10827,113 +10827,101 @@ Return ONLY the SQL, no explanation.`;
             style={{
               maxWidth: "42rem",
               margin: "0 auto",
-              paddingBottom: "160px",
               textAlign: "left",
             }}
           >
-            <h1
+            <h2
               style={{
-                fontSize: "26px",
-                fontWeight: 700,
                 color: "var(--text-h)",
-                margin: "0 0 12px",
-                letterSpacing: "-0.02em",
+                fontSize: "28px",
+                fontWeight: 700,
               }}
             >
               Data Contracts
-            </h1>
-            <p
-              style={{
-                fontSize: "15px",
-                lineHeight: 1.55,
-                color: "var(--text)",
-                margin: "0 0 24px",
-              }}
-            >
+            </h2>
+            <p style={{ color: "var(--text)", marginBottom: "24px" }}>
               Define what your data should look like. Get alerted when
               expectations are violated.
             </p>
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
+                padding: "16px 20px",
+                borderRadius: "10px",
+                border: "1px solid var(--border)",
+                background: "var(--code-bg)",
+                marginBottom: "12px",
+                borderLeft: "4px solid var(--risk-high)",
               }}
             >
-              {contracts.slice(0, 3).map((c) => {
-                const sev = String(c.severity).toLowerCase();
-                const badgeBg =
-                  sev === "critical"
-                    ? "var(--risk-high-bg)"
-                    : sev === "warning"
-                      ? "rgba(245, 158, 11, 0.12)"
-                      : "rgba(59, 130, 246, 0.12)";
-                const badgeColor =
-                  sev === "critical"
-                    ? "var(--risk-high)"
-                    : sev === "warning"
-                      ? "#fcd34d"
-                      : "#93c5fd";
-                const badgeBorder =
-                  sev === "critical"
-                    ? "1px solid var(--risk-high-border)"
-                    : sev === "warning"
-                      ? "1px solid rgba(245, 158, 11, 0.45)"
-                      : "1px solid rgba(59, 130, 246, 0.45)";
-                const colShow =
-                  c.column === "_row_count"
-                    ? "Row count"
-                    : c.column === "*"
-                      ? "Any column"
-                      : contractColumnLabel(columns, c.column);
-                return (
-                  <div
-                    key={c.id}
-                    style={{
-                      ...insightCardStyle,
-                      padding: "14px 16px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        color: "var(--text-muted)",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      {colShow}
-                    </div>
-                    <p
-                      style={{
-                        margin: "0 0 10px",
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        color: "var(--text-h)",
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {c.label}
-                    </p>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        letterSpacing: "0.04em",
-                        textTransform: "uppercase",
-                        padding: "3px 8px",
-                        borderRadius: "6px",
-                        background: badgeBg,
-                        color: badgeColor,
-                        border: badgeBorder,
-                      }}
-                    >
-                      {sev}
-                    </span>
-                  </div>
-                );
-              })}
+              <div
+                style={{
+                  color: "var(--risk-high)",
+                  fontWeight: 700,
+                  fontSize: "12px",
+                  marginBottom: "6px",
+                }}
+              >
+                🚨 CRITICAL
+              </div>
+              <div style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                Email must not be null
+              </div>
+              <div style={{ color: "var(--text)", fontSize: "13px" }}>
+                column: email → rule: not null
+              </div>
+            </div>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderRadius: "10px",
+                border: "1px solid var(--border)",
+                background: "var(--code-bg)",
+                marginBottom: "12px",
+                borderLeft: "4px solid var(--risk-medium)",
+              }}
+            >
+              <div
+                style={{
+                  color: "var(--risk-medium)",
+                  fontWeight: 700,
+                  fontSize: "12px",
+                  marginBottom: "6px",
+                }}
+              >
+                ⚠️ WARNING
+              </div>
+              <div style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                Country must be one of: FI, SE, NO, DK
+              </div>
+              <div style={{ color: "var(--text)", fontSize: "13px" }}>
+                column: country → rule: one of allowed values
+              </div>
+            </div>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderRadius: "10px",
+                border: "1px solid var(--border)",
+                background: "var(--code-bg)",
+                borderLeft: "4px solid var(--risk-high)",
+              }}
+            >
+              <div
+                style={{
+                  color: "var(--risk-high)",
+                  fontWeight: 700,
+                  fontSize: "12px",
+                  marginBottom: "6px",
+                }}
+              >
+                🚨 CRITICAL
+              </div>
+              <div style={{ color: "var(--text-h)", fontWeight: 600 }}>
+                Row count must not drop by more than 10%
+              </div>
+              <div style={{ color: "var(--text)", fontSize: "13px" }}>
+                table: all → rule: max 10% row count decrease
+              </div>
             </div>
           </section>
         )}
