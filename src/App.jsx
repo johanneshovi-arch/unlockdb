@@ -4379,9 +4379,6 @@ Return ONLY the SQL, no explanation.`;
     const trimmed = text.trim();
     console.log("Sending:", trimmed);
     if (!trimmed) return;
-    if (messages.length === 0) {
-      setCopilotHistoryExpanded(true);
-    }
     const handledCommandReply = tryHandleCopilotCommand(trimmed, {
       columns,
       statChanges,
@@ -11942,7 +11939,7 @@ Return ONLY the SQL, no explanation.`;
                   No messages yet.
                 </span>
               ) : (
-                messages.slice(-8).map((m, i) => (
+                messages.map((m, i) => (
                   <div
                     key={m.id}
                     style={{
@@ -11980,159 +11977,157 @@ Return ONLY the SQL, no explanation.`;
             </div>
           ) : null}
 
-          <div style={{ marginBottom: "8px" }}>
-            <button
-              type="button"
-              onClick={() => setCopilotHistoryExpanded((x) => !x)}
-              className="app-ghost-btn"
-              style={{
-                padding: "8px 12px",
-                fontSize: "12px",
-                fontWeight: 600,
-                borderRadius: "8px",
-                border: "1px solid var(--border)",
-                background: "var(--social-bg)",
-                color: "var(--text-h)",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                flexShrink: 0,
-              }}
-              title="Show or hide AI Assistant message history"
-              aria-expanded={copilotHistoryExpanded}
-            >
-              {copilotHistoryExpanded ? "Hide" : "History"}
-            </button>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: "6px",
-              marginBottom: "10px",
-              position: "relative",
-              zIndex: 1,
-              pointerEvents: "auto",
-            }}
-          >
-            {CHAT_SUGGESTIONS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                className="ai-assistant-bar-chip"
-                onClick={() => sendChatMessage(s.prompt)}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-
           <form
             onSubmit={handleCopilotSend}
             noValidate
             style={{
-              display: "flex",
-              gap: "8px",
-              alignItems: "stretch",
               width: "100%",
               position: "relative",
               zIndex: 1,
               pointerEvents: "auto",
             }}
           >
-            <input
-              type="text"
-              name="unlockdb-ai-assistant-command"
-              autoComplete="off"
-              spellCheck={false}
-              value={copilotInput}
-              onChange={(e) => setCopilotInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" || e.shiftKey) return;
-                if (e.nativeEvent?.isComposing) return;
-                e.preventDefault();
-                const form = e.currentTarget.form;
-                if (form && typeof form.requestSubmit === "function") {
-                  form.requestSubmit();
-                } else {
-                  handleCopilotSend(null);
-                }
-              }}
-              placeholder="Ask AI Assistant — e.g. what changed?, show risks, what should I fix first?"
-              aria-label="AI Assistant command"
-              className="unlockdb-field"
+            <div style={{ marginBottom: "8px" }}>
+              <button
+                type="button"
+                onClick={() => setCopilotHistoryExpanded((x) => !x)}
+                className="app-ghost-btn"
+                style={{
+                  padding: "8px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--social-bg)",
+                  color: "var(--text-h)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  flexShrink: 0,
+                }}
+                title="Show or hide AI Assistant message history"
+                aria-expanded={copilotHistoryExpanded}
+              >
+                {copilotHistoryExpanded ? "Hide" : "History"}
+              </button>
+            </div>
+
+            <div
               style={{
-                flex: 1,
-                minWidth: 0,
-                padding: "10px 12px",
-                borderRadius: "8px",
-                fontSize: "14px",
-                pointerEvents: "auto",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: "6px",
+                marginBottom: "10px",
                 position: "relative",
                 zIndex: 1,
-              }}
-            />
-            <button
-              type="submit"
-              className="app-primary-btn"
-              style={{
-                padding: "10px 16px",
-                borderRadius: "8px",
-                fontSize: "14px",
-                flexShrink: 0,
+                pointerEvents: "auto",
               }}
             >
-              Run
-            </button>
+              {CHAT_SUGGESTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className="ai-assistant-bar-chip"
+                  onClick={() => sendChatMessage(s.prompt)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                alignItems: "stretch",
+                width: "100%",
+              }}
+            >
+              <input
+                type="text"
+                name="unlockdb-ai-assistant-command"
+                autoComplete="off"
+                spellCheck={false}
+                value={copilotInput}
+                onChange={(e) => setCopilotInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || e.shiftKey) return;
+                  if (e.nativeEvent?.isComposing) return;
+                  e.preventDefault();
+                  const form = e.currentTarget.form;
+                  if (form && typeof form.requestSubmit === "function") {
+                    form.requestSubmit();
+                  } else {
+                    handleCopilotSend(null);
+                  }
+                }}
+                placeholder="Ask AI Assistant — e.g. what changed?, show risks, what should I fix first?"
+                aria-label="AI Assistant command"
+                className="unlockdb-field"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  pointerEvents: "auto",
+                  position: "relative",
+                  zIndex: 1,
+                }}
+              />
+              <button
+                type="submit"
+                className="app-primary-btn"
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  flexShrink: 0,
+                }}
+              >
+                Run
+              </button>
+            </div>
           </form>
           <p
             style={{
-              margin: "6px 0 0",
+              margin: "8px 0 0",
               fontSize: "11px",
-              lineHeight: 1.35,
+              lineHeight: 1.45,
               color: "var(--text-muted)",
-              opacity: 0.85,
+              opacity: 0.9,
             }}
           >
-            🔒 Only data statistics are shared with AI — never raw values
+            <span>
+              🔒 Only data statistics are shared with AI — never raw values
+            </span>
+            <span style={{ display: "block", marginTop: "4px", color: "var(--text)" }}>
+              {changeFeedFilter === "high-risk" ? (
+                <span>
+                  Feed filter: <strong>HIGH risk only</strong>
+                </span>
+              ) : (
+                <span>
+                  Feed filter: <strong>all</strong>
+                </span>
+              )}
+              {selectedColumn ? (
+                <span>
+                  {" "}
+                  · Column focus:{" "}
+                  <strong>
+                    {columns.find((c) => c.key === selectedColumn)?.label ??
+                      selectedColumn}
+                  </strong>
+                </span>
+              ) : null}
+              {commandResult?.assistantCommand ? (
+                <span style={{ opacity: 0.9 }}> · Last: AI assistant action</span>
+              ) : commandResult ? (
+                <span style={{ opacity: 0.9 }}> · Last: AI Assistant reply</span>
+              ) : null}
+            </span>
           </p>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: "10px",
-              marginTop: "8px",
-              fontSize: "11px",
-              color: "var(--text)",
-              lineHeight: 1.35,
-            }}
-          >
-            {changeFeedFilter === "high-risk" ? (
-              <span>
-                Feed filter: <strong>HIGH risk only</strong>
-              </span>
-            ) : (
-              <span>
-                Feed filter: <strong>all</strong>
-              </span>
-            )}
-            {selectedColumn ? (
-              <span>
-                Column focus:{" "}
-                <strong>
-                  {columns.find((c) => c.key === selectedColumn)?.label ??
-                    selectedColumn}
-                </strong>
-              </span>
-            ) : null}
-            {commandResult?.assistantCommand ? (
-              <span style={{ opacity: 0.9 }}>Last: AI assistant action</span>
-            ) : commandResult ? (
-              <span style={{ opacity: 0.9 }}>Last: AI Assistant reply</span>
-            ) : null}
-          </div>
         </div>
         </footer>,
         document.getElementById("root") ?? document.body
