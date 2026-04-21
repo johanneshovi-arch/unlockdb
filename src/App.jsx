@@ -12,8 +12,9 @@ const TAB_TO_PATH = {
   sources: "/sources",
   chat: "/copilot",
   governance: "/governance",
-  security: "/security",
   settings: "/settings",
+  contracts: "/contracts",
+  security: "/security",
   audit: "/audit",
   account: "/account",
 };
@@ -1362,6 +1363,21 @@ function buildCopilotContextPack(ctx, meta) {
     return `[${r.severity}] ${r.headline} | mayBreak: ${mb || "—"} | mayAffect: ${ma || "—"}`;
   });
   if (risks.length) lines.push(`Risks: ${risks.join(" || ")}`);
+  if (Array.isArray(ctx.contractViolations)) {
+    const cv = ctx.contractViolations.map((v) => ({
+      column: v.column,
+      rule: v.message,
+      severity: v.severity,
+      affectedRows: v.affectedRows,
+    }));
+    if (cv.length) {
+      lines.push(`Contract violations: ${JSON.stringify(cv)}`);
+    } else if (ctx.contracts?.length) {
+      lines.push(
+        `Contracts: ${ctx.contracts.length} rule(s) defined — all passed on loaded data.`
+      );
+    }
+  }
   const imp = (meta.impactLines ?? []).slice(0, 15);
   if (imp.length) lines.push(`Impact lines: ${imp.join(" · ")}`);
   if (meta.deterministicActionReply) {
@@ -2522,9 +2538,270 @@ function parsePercent(pct) {
   return Number.parseFloat(String(pct).replace("%", "")) || 0;
 }
 
+function isContractCellEmpty(v) {
+  if (v === null || v === undefined) return true;
+  if (typeof v === "string" && v.trim() === "") return true;
+  return false;
+}
+
+function parseOneOfList(raw) {
+  return String(raw ?? "")
+    .split(/[,|]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function contractColumnLabel(columns, key) {
+  if (key === "_row_count") return "Row count";
+  return columns.find((c) => c.key === key)?.label ?? key;
+}
+
+/** @returns {{ contractId: string, column: string, severity: string, message: string, affectedRows: number }[]} */
+function evaluateContracts(contracts, previousData, currentData, columns) {
+  const violations = [];
+  if (!contracts?.length || !currentData.length || !columns.length) {
+    return violations;
+  }
+  const colKeys = new Set(columns.map((c) => c.key));
+
+  for (const c of contracts) {
+    const contractId = String(c.id ?? "");
+    const severity = String(c.severity ?? "warning").toLowerCase();
+    const rule = c.rule;
+    const label = (c.label ?? "Contract").trim();
+
+    if (rule === "no_drop_pct" || rule === "no_increase_pct") {
+      const threshold = parsePercent(c.value ?? "0");
+      const prevLen = previousData.length;
+      const curLen = currentData.length;
+      if (prevLen <= 0) continue;
+      if (rule === "no_drop_pct") {
+        if (curLen < prevLen) {
+          const dropPct = ((prevLen - curLen) / prevLen) * 100;
+          if (dropPct > threshold) {
+            violations.push({
+              contractId,
+              column: "_row_count",
+              severity,
+              message: `${label} — row count dropped about ${dropPct.toFixed(1)}% (${prevLen} → ${curLen}); allowed max drop ${threshold}%.`,
+              affectedRows: prevLen - curLen,
+            });
+          }
+        }
+      } else if (curLen > prevLen) {
+        const incPct = ((curLen - prevLen) / prevLen) * 100;
+        if (incPct > threshold) {
+          violations.push({
+            contractId,
+            column: "_row_count",
+            severity,
+            message: `${label} — row count rose about ${incPct.toFixed(1)}% (${prevLen} → ${curLen}); allowed max increase ${threshold}%.`,
+            affectedRows: curLen - prevLen,
+          });
+        }
+      }
+      continue;
+    }
+
+    const keysForNotNullAny =
+      c.column === "*" || c.column === "__any__"
+        ? columns.map((co) => co.key)
+        : null;
+
+    if (rule === "not_null" && keysForNotNullAny) {
+      for (const key of keysForNotNullAny) {
+        const badRows = [];
+        for (let i = 0; i < currentData.length; i++) {
+          if (isContractCellEmpty(currentData[i][key])) badRows.push(i + 1);
+        }
+        if (badRows.length) {
+          const colLabel = contractColumnLabel(columns, key);
+          violations.push({
+            contractId,
+            column: key,
+            severity,
+            message: `${colLabel} must not be null — ${badRows.length} row(s) with empty values (e.g. row ${badRows[0]}).`,
+            affectedRows: badRows.length,
+          });
+        }
+      }
+      continue;
+    }
+
+    if (!c.column || c.column === "*" || !colKeys.has(c.column)) continue;
+    const colKey = c.column;
+
+    if (rule === "not_null") {
+      const badRows = [];
+      for (let i = 0; i < currentData.length; i++) {
+        if (isContractCellEmpty(currentData[i][colKey])) badRows.push(i + 1);
+      }
+      if (badRows.length) {
+        const colLabel = contractColumnLabel(columns, colKey);
+        violations.push({
+          contractId,
+          column: colKey,
+          severity,
+          message: `${colLabel} must not be null — ${badRows.length} row(s) (e.g. row ${badRows[0]}).`,
+          affectedRows: badRows.length,
+        });
+      }
+      continue;
+    }
+
+    if (rule === "must_be_unique") {
+      const counts = new Map();
+      const firstRow = new Map();
+      for (let i = 0; i < currentData.length; i++) {
+        const v = currentData[i][colKey];
+        if (isContractCellEmpty(v)) continue;
+        const k = String(v);
+        counts.set(k, (counts.get(k) ?? 0) + 1);
+        if (!firstRow.has(k)) firstRow.set(k, i + 1);
+      }
+      let dupRows = 0;
+      const examples = [];
+      for (const [val, cnt] of counts) {
+        if (cnt > 1) {
+          dupRows += cnt;
+          if (examples.length < 3) examples.push(`"${val}" (${cnt}×)`);
+        }
+      }
+      if (dupRows > 0) {
+        const colLabel = contractColumnLabel(columns, colKey);
+        violations.push({
+          contractId,
+          column: colKey,
+          severity,
+          message: `${colLabel} must be unique — duplicate values: ${examples.join(", ")}.`,
+          affectedRows: dupRows,
+        });
+      }
+      continue;
+    }
+
+    if (rule === "one_of") {
+      const allowed = new Set(
+        parseOneOfList(c.value).map((s) => s.toLowerCase())
+      );
+      if (!allowed.size) continue;
+      const badRows = [];
+      const badSamples = new Set();
+      for (let i = 0; i < currentData.length; i++) {
+        const raw = currentData[i][colKey];
+        if (isContractCellEmpty(raw)) continue;
+        const norm = String(raw).trim().toLowerCase();
+        if (!allowed.has(norm)) {
+          badRows.push(i + 1);
+          if (badSamples.size < 4) badSamples.add(String(raw).trim());
+        }
+      }
+      if (badRows.length) {
+        const colLabel = contractColumnLabel(columns, colKey);
+        const samples = [...badSamples].join(", ");
+        violations.push({
+          contractId,
+          column: colKey,
+          severity,
+          message: `${colLabel} must be one of allowed values — ${badRows.length} row(s) with unexpected value(s): ${samples}.`,
+          affectedRows: badRows.length,
+        });
+      }
+      continue;
+    }
+
+    if (rule === "greater_than") {
+      const threshold = Number.parseFloat(String(c.value ?? "").trim());
+      if (!Number.isFinite(threshold)) continue;
+      const badRows = [];
+      for (let i = 0; i < currentData.length; i++) {
+        const n = Number.parseFloat(currentData[i][colKey]);
+        if (Number.isFinite(n) && n <= threshold) badRows.push(i + 1);
+      }
+      if (badRows.length) {
+        const colLabel = contractColumnLabel(columns, colKey);
+        violations.push({
+          contractId,
+          column: colKey,
+          severity,
+          message: `${colLabel} must be greater than ${threshold} — ${badRows.length} row(s) fail (e.g. row ${badRows[0]}).`,
+          affectedRows: badRows.length,
+        });
+      }
+      continue;
+    }
+
+    if (rule === "less_than") {
+      const threshold = Number.parseFloat(String(c.value ?? "").trim());
+      if (!Number.isFinite(threshold)) continue;
+      const badRows = [];
+      for (let i = 0; i < currentData.length; i++) {
+        const n = Number.parseFloat(currentData[i][colKey]);
+        if (Number.isFinite(n) && n >= threshold) badRows.push(i + 1);
+      }
+      if (badRows.length) {
+        const colLabel = contractColumnLabel(columns, colKey);
+        violations.push({
+          contractId,
+          column: colKey,
+          severity,
+          message: `${colLabel} must be less than ${threshold} — ${badRows.length} row(s) fail (e.g. row ${badRows[0]}).`,
+          affectedRows: badRows.length,
+        });
+      }
+    }
+  }
+
+  const rank = { critical: 0, warning: 1, info: 2 };
+  violations.sort(
+    (a, b) =>
+      (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3) ||
+      String(a.column).localeCompare(String(b.column))
+  );
+  return violations;
+}
+
+function buildNewContractLabel(rule, columnKey, value, columns) {
+  const col =
+    columnKey === "_row_count"
+      ? "Row count"
+      : columnKey === "*"
+        ? "Any column"
+        : contractColumnLabel(columns, columnKey);
+  switch (rule) {
+    case "not_null":
+      return columnKey === "*"
+        ? "Selected columns must not be null"
+        : `${col} must not be null`;
+    case "must_be_unique":
+      return `${col} must be unique`;
+    case "one_of":
+      return `${col} must be one of: ${value ?? ""}`.trim();
+    case "greater_than":
+      return `${col} must be greater than ${value ?? ""}`.trim();
+    case "less_than":
+      return `${col} must be less than ${value ?? ""}`.trim();
+    case "no_drop_pct":
+      return `Row count must not drop by more than ${value ?? ""}%`;
+    case "no_increase_pct":
+      return `Row count must not increase by more than ${value ?? ""}%`;
+    default:
+      return "Data contract rule";
+  }
+}
+
 function detectChatIntent(raw) {
   const q = raw.trim().toLowerCase();
   if (!q) return "empty";
+
+  if (
+    /\bcontract violations?\b/.test(q) ||
+    /\bcheck contracts\b/.test(q) ||
+    /\b(which|any) contracts? (failed|failing)\b/.test(q) ||
+    (/\bcontracts?\b/.test(q) && /\bviolat/.test(q))
+  ) {
+    return "contracts";
+  }
 
   if (
     /\b(downstream impact|downstream systems?|impact simulation)\b/.test(q) ||
@@ -2608,6 +2885,7 @@ const CHAT_FALLBACK = [
     "risks",
     "downstream impact",
     "summary",
+    "data contracts / violations",
   ]),
 ].join("\n");
 
@@ -2720,6 +2998,38 @@ function chatAnswerNullPercentage(ctx) {
   return ["Null %", "(header row + column cards)", "", chatBullets(lines)].join("\n");
 }
 
+function chatAnswerContracts(ctx) {
+  const defs = ctx.contracts?.length ?? 0;
+  if (!defs) {
+    return [
+      "Data contracts",
+      "",
+      "• No rules defined yet — open the Contracts tab to add expectations.",
+    ].join("\n");
+  }
+  if (!ctx.currentData?.length) {
+    return [
+      "Data contracts",
+      "",
+      "• Rules are on file, but there is no current snapshot loaded — open Sources and load data to evaluate.",
+    ].join("\n");
+  }
+  const v = ctx.contractViolations ?? [];
+  if (!v.length) {
+    return [
+      "Data contracts",
+      "",
+      `• All ${defs} contract rule(s) passed on the loaded current data.`,
+    ].join("\n");
+  }
+  const lines = v.slice(0, 12).map(
+    (x) =>
+      `[${String(x.severity).toUpperCase()}] ${x.message} (affected rows: ${x.affectedRows})`
+  );
+  if (v.length > 12) lines.push(`…+${v.length - 12} more`);
+  return ["Data contract violations", "", chatBullets(lines)].join("\n");
+}
+
 function chatAnswerDownstreamImpact(ctx) {
   if (!ctx.riskFindings.length) {
     return ["Impact", "", "• No risk cards — nothing to map downstream."].join("\n");
@@ -2775,6 +3085,8 @@ function chatReply(raw, ctx) {
       return chatAnswerNewValues(ctx);
     case "downstream_impact":
       return chatAnswerDownstreamImpact(ctx);
+    case "contracts":
+      return chatAnswerContracts(ctx);
     default:
       return CHAT_FALLBACK;
   }
@@ -2830,6 +3142,11 @@ const CHAT_SUGGESTIONS = [
     id: "team-summary",
     label: "Summarize for my team",
     prompt: "Summarize for my team",
+  },
+  {
+    id: "check-contracts",
+    label: "Check contracts",
+    prompt: "Are there any contract violations?",
   },
   {
     id: "tables-issues",
@@ -3152,6 +3469,37 @@ function App() {
   const [lastCopilotReply, setLastCopilotReply] = useState(null);
   /** After current CSV (or sample) load — quick actions in AI assistant bar. */
   const [csvUploadSuccessTip, setCsvUploadSuccessTip] = useState(null);
+  const [contracts, setContracts] = useState([
+    {
+      id: "1",
+      column: "email",
+      rule: "not_null",
+      value: null,
+      severity: "critical",
+      label: "Email must not be null",
+    },
+    {
+      id: "2",
+      column: "country",
+      rule: "one_of",
+      value: "FI, SE, NO, DK",
+      severity: "warning",
+      label: "Country must be one of: FI, SE, NO, DK",
+    },
+    {
+      id: "3",
+      column: "_row_count",
+      rule: "no_drop_pct",
+      value: "10",
+      severity: "critical",
+      label: "Row count must not drop by more than 10%",
+    },
+  ]);
+  const [contractFormColumn, setContractFormColumn] = useState("*");
+  const [contractFormRule, setContractFormRule] = useState("not_null");
+  const [contractFormValue, setContractFormValue] = useState("");
+  const [contractFormSeverity, setContractFormSeverity] =
+    useState("warning");
   const [history, setHistory] = useState([]);
   const [dismissed, setDismissed] = useState(false);
   const [overviewTrustBannerDismissed, setOverviewTrustBannerDismissed] =
@@ -3423,6 +3771,75 @@ function App() {
 
   const firstHighStatChange = statChanges.find((s) => s.tier === "HIGH");
 
+  const contractViolationList = useMemo(
+    () => evaluateContracts(contracts, previousData, currentData, columns),
+    [contracts, previousData, currentData, columns]
+  );
+
+  const renderContractTableBadge = useCallback(
+    (tblName) => {
+      if (!contracts.length) return null;
+      const warehouseKey =
+        activeSourceName === "snowflake"
+          ? "snowflake"
+          : activeSourceName === "databricks"
+            ? "databricks"
+            : null;
+      if (!warehouseKey) return null;
+      const isActive =
+        overviewHasData &&
+        ((warehouseKey === "snowflake" &&
+          activeSourceName === "snowflake" &&
+          snowflakeWarehouseTableDisplay === tblName) ||
+          (warehouseKey === "databricks" &&
+            activeSourceName === "databricks" &&
+            databricksWarehouseTableDisplay === tblName));
+      if (!isActive) return null;
+      const n = contractViolationList.length;
+      const base = {
+        fontSize: "10px",
+        fontWeight: 700,
+        padding: "2px 7px",
+        borderRadius: "6px",
+        whiteSpace: "nowrap",
+      };
+      if (n > 0) {
+        return (
+          <span
+            style={{
+              ...base,
+              border: "1px solid var(--risk-high-border)",
+              background: "var(--risk-high-bg)",
+              color: "var(--risk-high)",
+            }}
+          >
+            📋 {n} contract violation{n === 1 ? "" : "s"}
+          </span>
+        );
+      }
+      return (
+        <span
+          style={{
+            ...base,
+            border: "1px solid rgba(34, 197, 94, 0.35)",
+            background: "rgba(34, 197, 94, 0.08)",
+            color: "#86efac",
+          }}
+        >
+          📋 ✅ Contracts OK
+        </span>
+      );
+    },
+    [
+      contracts.length,
+      overviewHasData,
+      activeSourceName,
+      snowflakeWarehouseTableDisplay,
+      databricksWarehouseTableDisplay,
+      contractViolationList.length,
+    ]
+  );
+
   const chatContext = {
     previousData,
     currentData,
@@ -3433,6 +3850,8 @@ function App() {
     riskFindings,
     rowLevelDiff,
     dataQualityIssues,
+    contracts,
+    contractViolations: contractViolationList,
   };
 
   useEffect(() => {
@@ -4177,8 +4596,9 @@ Return ONLY the SQL, no explanation.`;
     { id: "sources", label: "Sources" },
     { id: "chat", label: "AI Assistant" },
     { id: "governance", label: "Governance" },
-    { id: "security", label: "🔒 Security" },
     { id: "settings", label: "Settings" },
+    { id: "contracts", label: "Contracts" },
+    { id: "security", label: "🔒 Security" },
     { id: "audit", label: "Audit" },
     {
       id: "account",
@@ -5490,6 +5910,142 @@ Return ONLY the SQL, no explanation.`;
                       )}
                     </div>
                   </>
+                ) : null}
+
+                {contracts.length > 0 && overviewHasData ? (
+                  <div
+                    style={{
+                      maxWidth: "44rem",
+                      margin: "0 auto 22px",
+                    }}
+                  >
+                    <h2
+                      style={{
+                        ...governanceH2Style,
+                        fontSize: "17px",
+                        margin: "0 0 12px",
+                        color: "var(--text-h)",
+                      }}
+                    >
+                      📋 Contract violations
+                    </h2>
+                    {contractViolationList.length === 0 ? (
+                      <div
+                        style={{
+                          padding: "16px 18px",
+                          borderRadius: "10px",
+                          border: "1px solid rgba(34, 197, 94, 0.35)",
+                          background: "rgba(34, 197, 94, 0.06)",
+                          boxSizing: "border-box",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: 700,
+                            color: "#86efac",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          ✅ All contracts passed
+                        </div>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "13px",
+                            lineHeight: 1.45,
+                            color: "var(--text)",
+                          }}
+                        >
+                          Your data meets all defined expectations.
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "12px",
+                        }}
+                      >
+                        {contractViolationList.map((v, idx) => {
+                          const sev = String(v.severity).toLowerCase();
+                          const title =
+                            contracts.find((c) => c.id === v.contractId)
+                              ?.label ?? v.column;
+                          const border =
+                            sev === "critical"
+                              ? "1px solid var(--risk-high-border)"
+                              : sev === "warning"
+                                ? "1px solid rgba(245, 158, 11, 0.45)"
+                                : "1px solid rgba(59, 130, 246, 0.45)";
+                          const bg =
+                            sev === "critical"
+                              ? "var(--risk-high-bg)"
+                              : sev === "warning"
+                                ? "rgba(245, 158, 11, 0.08)"
+                                : "rgba(59, 130, 246, 0.1)";
+                          const tag =
+                            sev === "critical"
+                              ? "🚨 CRITICAL"
+                              : sev === "warning"
+                                ? "⚠️ WARNING"
+                                : "ℹ️ INFO";
+                          return (
+                            <div
+                              key={`${v.contractId}-${v.column}-${idx}`}
+                              style={{
+                                padding: "14px 16px",
+                                borderRadius: "10px",
+                                border,
+                                background: bg,
+                                boxSizing: "border-box",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  letterSpacing: "0.06em",
+                                  color:
+                                    sev === "critical"
+                                      ? "var(--risk-high)"
+                                      : sev === "warning"
+                                        ? "#fcd34d"
+                                        : "#93c5fd",
+                                  marginBottom: "8px",
+                                }}
+                              >
+                                {tag}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  fontWeight: 600,
+                                  color: "var(--text-h)",
+                                  marginBottom: "6px",
+                                  lineHeight: 1.35,
+                                }}
+                              >
+                                &ldquo;{title}&rdquo;
+                              </div>
+                              <p
+                                style={{
+                                  margin: 0,
+                                  fontSize: "13px",
+                                  lineHeight: 1.45,
+                                  color: "var(--text)",
+                                }}
+                              >
+                                {v.affectedRows} row
+                                {v.affectedRows === 1 ? "" : "s"} — {v.message}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 ) : null}
 
                 <h2
@@ -8574,6 +9130,7 @@ Return ONLY the SQL, no explanation.`;
                                 {tbl.changeCount} chg
                               </span>
                             ) : null}
+                            {renderContractTableBadge(tbl.name)}
                           </div>
                         </button>
                       ))}
@@ -8830,6 +9387,7 @@ Return ONLY the SQL, no explanation.`;
                                   ⚠️ {tbl.changeCount} changes
                                 </span>
                               ) : null}
+                              {renderContractTableBadge(tbl.name)}
                             </div>
                           </div>
                           <div
@@ -9275,6 +9833,7 @@ Return ONLY the SQL, no explanation.`;
                                 {tbl.changeCount} chg
                               </span>
                             ) : null}
+                            {renderContractTableBadge(tbl.name)}
                           </div>
                         </button>
                       ))}
@@ -9531,6 +10090,7 @@ Return ONLY the SQL, no explanation.`;
                                   ⚠️ {tbl.changeCount} changes
                                 </span>
                               ) : null}
+                              {renderContractTableBadge(tbl.name)}
                             </div>
                           </div>
                           <div
@@ -10274,6 +10834,365 @@ Return ONLY the SQL, no explanation.`;
               >
                 Request DPA →
               </button>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "contracts" && (
+          <section style={governanceSectionStyle}>
+            <h2 style={governanceH2Style}>Data Contracts</h2>
+            <p style={{ ...governanceMutedStyle, marginBottom: "14px" }}>
+              Define what your data should look like — get alerted when it
+              doesn&apos;t.
+            </p>
+            <div
+              style={{
+                ...settingsPageSectionCardStyle,
+                marginBottom: "20px",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "14px",
+                  lineHeight: 1.55,
+                  color: "var(--text)",
+                }}
+              >
+                Data contracts let you set expectations for your tables. Unlockdb
+                checks these automatically every time you load data.
+              </p>
+            </div>
+
+            <div style={settingsPageSectionCardStyle}>
+              <h3 style={{ ...governanceH3Style, marginTop: 0 }}>Add a rule</h3>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "16px",
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    fontSize: "14px",
+                    color: "var(--text-h)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Column
+                  <select
+                    className="unlockdb-field"
+                    style={settingsPageSelectStyle}
+                    value={
+                      contractFormRule === "no_drop_pct" ||
+                      contractFormRule === "no_increase_pct"
+                        ? "_row_count"
+                        : contractFormColumn
+                    }
+                    disabled={
+                      contractFormRule === "no_drop_pct" ||
+                      contractFormRule === "no_increase_pct"
+                    }
+                    onChange={(e) => setContractFormColumn(e.target.value)}
+                    aria-label="Contract column"
+                  >
+                    <option value="*">Any column</option>
+                    {columns.map((col) => (
+                      <option key={col.key} value={col.key}>
+                        {col.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--text-muted)",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Row-count rules ignore this field.
+                  </span>
+                </label>
+
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    fontSize: "14px",
+                    color: "var(--text-h)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Rule
+                  <select
+                    className="unlockdb-field"
+                    style={settingsPageSelectStyle}
+                    value={contractFormRule}
+                    onChange={(e) => setContractFormRule(e.target.value)}
+                    aria-label="Contract rule type"
+                  >
+                    <option value="not_null">Must not be null</option>
+                    <option value="must_be_unique">Must be unique</option>
+                    <option value="one_of">Must be one of these values</option>
+                    <option value="greater_than">Must be greater than</option>
+                    <option value="less_than">Must be less than</option>
+                    <option value="no_drop_pct">
+                      Row count must not drop by more than %
+                    </option>
+                    <option value="no_increase_pct">
+                      Row count must not increase by more than %
+                    </option>
+                  </select>
+                </label>
+
+                {contractFormRule === "one_of" ||
+                contractFormRule === "greater_than" ||
+                contractFormRule === "less_than" ||
+                contractFormRule === "no_drop_pct" ||
+                contractFormRule === "no_increase_pct" ? (
+                  <label
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                      fontSize: "14px",
+                      color: "var(--text-h)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Value
+                    <input
+                      type="text"
+                      className="unlockdb-field"
+                      value={contractFormValue}
+                      onChange={(e) => setContractFormValue(e.target.value)}
+                      placeholder={
+                        contractFormRule === "one_of"
+                          ? "FI, SE, NO, DK"
+                          : contractFormRule === "greater_than" ||
+                              contractFormRule === "less_than"
+                            ? "0"
+                            : "10"
+                      }
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border)",
+                        fontSize: "14px",
+                        fontFamily: "inherit",
+                        background: "var(--bg)",
+                        color: "var(--text-h)",
+                        maxWidth: "100%",
+                        boxSizing: "border-box",
+                      }}
+                      aria-label="Contract rule value"
+                    />
+                  </label>
+                ) : null}
+
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    fontSize: "14px",
+                    color: "var(--text-h)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Severity
+                  <select
+                    className="unlockdb-field"
+                    style={settingsPageSelectStyle}
+                    value={contractFormSeverity}
+                    onChange={(e) => setContractFormSeverity(e.target.value)}
+                    aria-label="Contract severity"
+                  >
+                    <option value="critical">Critical</option>
+                    <option value="warning">Warning</option>
+                    <option value="info">Info</option>
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  className="app-primary-btn"
+                  disabled={
+                    ((contractFormRule === "one_of" ||
+                      contractFormRule === "greater_than" ||
+                      contractFormRule === "less_than" ||
+                      contractFormRule === "no_drop_pct" ||
+                      contractFormRule === "no_increase_pct") &&
+                      !String(contractFormValue).trim()) ||
+                    (contractFormColumn === "*" &&
+                      contractFormRule !== "not_null")
+                  }
+                  onClick={() => {
+                    const rule = contractFormRule;
+                    const column =
+                      rule === "no_drop_pct" || rule === "no_increase_pct"
+                        ? "_row_count"
+                        : contractFormColumn;
+                    if (column === "*" && rule !== "not_null") return;
+                    const needsVal =
+                      rule === "one_of" ||
+                      rule === "greater_than" ||
+                      rule === "less_than" ||
+                      rule === "no_drop_pct" ||
+                      rule === "no_increase_pct";
+                    const rawVal = String(contractFormValue).trim();
+                    if (needsVal && !rawVal) return;
+                    const value = needsVal ? rawVal : null;
+                    const label = buildNewContractLabel(
+                      rule,
+                      column,
+                      value,
+                      columns
+                    );
+                    setContracts((prev) => [
+                      ...prev,
+                      {
+                        id: `c-${Date.now()}`,
+                        column,
+                        rule,
+                        value,
+                        severity: contractFormSeverity,
+                        label,
+                      },
+                    ]);
+                    setContractFormValue("");
+                  }}
+                  style={{
+                    alignSelf: "flex-start",
+                    padding: "10px 18px",
+                    borderRadius: "8px",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                  }}
+                >
+                  Add rule +
+                </button>
+              </div>
+            </div>
+
+            <h3 style={{ ...governanceH3Style, marginTop: "8px" }}>
+              Active rules
+            </h3>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                marginBottom: "24px",
+              }}
+            >
+              {contracts.map((c) => {
+                const sev = String(c.severity).toLowerCase();
+                const badgeBg =
+                  sev === "critical"
+                    ? "var(--risk-high-bg)"
+                    : sev === "warning"
+                      ? "rgba(245, 158, 11, 0.12)"
+                      : "rgba(59, 130, 246, 0.12)";
+                const badgeColor =
+                  sev === "critical"
+                    ? "var(--risk-high)"
+                    : sev === "warning"
+                      ? "#fcd34d"
+                      : "#93c5fd";
+                const badgeBorder =
+                  sev === "critical"
+                    ? "1px solid var(--risk-high-border)"
+                    : sev === "warning"
+                      ? "1px solid rgba(245, 158, 11, 0.45)"
+                      : "1px solid rgba(59, 130, 246, 0.45)";
+                const colShow =
+                  c.column === "_row_count"
+                    ? "Row count"
+                    : c.column === "*"
+                      ? "Any column"
+                      : contractColumnLabel(columns, c.column);
+                return (
+                  <div
+                    key={c.id}
+                    style={{
+                      ...insightCardStyle,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                    }}
+                  >
+                    <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          color: "var(--text-muted)",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {colShow}
+                      </div>
+                      <p
+                        style={{
+                          margin: "0 0 8px",
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: "var(--text-h)",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {c.label}
+                      </p>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          letterSpacing: "0.04em",
+                          textTransform: "uppercase",
+                          padding: "3px 8px",
+                          borderRadius: "6px",
+                          background: badgeBg,
+                          color: badgeColor,
+                          border: badgeBorder,
+                        }}
+                      >
+                        {sev}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Delete rule ${c.label}`}
+                      onClick={() =>
+                        setContracts((prev) => prev.filter((x) => x.id !== c.id))
+                      }
+                      className="app-ghost-btn"
+                      style={{
+                        padding: "6px 12px",
+                        fontSize: "18px",
+                        lineHeight: 1,
+                        borderRadius: "8px",
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
