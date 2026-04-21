@@ -3436,8 +3436,6 @@ function App() {
   const [commandResult, setCommandResult] = useState(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
-  /** Latest exchange shown in sticky bar (user + Unlockdb reply). */
-  const [lastCopilotReply, setLastCopilotReply] = useState(null);
   /** After current CSV (or sample) load — quick actions in AI assistant bar. */
   const [csvUploadSuccessTip, setCsvUploadSuccessTip] = useState(null);
   const [contracts, setContracts] = useState([
@@ -4384,11 +4382,6 @@ Return ONLY the SQL, no explanation.`;
     if (messages.length === 0) {
       setCopilotHistoryExpanded(true);
     }
-    setLastCopilotReply({
-      user: trimmed,
-      reply: "",
-      pending: true,
-    });
     const handledCommandReply = tryHandleCopilotCommand(trimmed, {
       columns,
       statChanges,
@@ -4477,11 +4470,6 @@ Return ONLY the SQL, no explanation.`;
             : m
         )
       );
-      setLastCopilotReply({
-        user: trimmed,
-        reply: finalText,
-        pending: false,
-      });
       setCommandResult({
         assistantCommand: handledCommandReply != null,
         query: trimmed,
@@ -12015,99 +12003,6 @@ Return ONLY the SQL, no explanation.`;
               {copilotHistoryExpanded ? "Hide" : "History"}
             </button>
           </div>
-
-          {lastCopilotReply ? (
-            <div
-              style={{
-                marginBottom: "10px",
-                padding: "12px 16px",
-                borderTop: "1px solid #2f2f2f",
-                background: "#111111",
-                borderRadius: "8px",
-                textAlign: "left",
-                position: "relative",
-                maxHeight: "200px",
-                overflowY: "auto",
-              }}
-            >
-              <button
-                type="button"
-                aria-label="Dismiss reply"
-                onClick={() => setLastCopilotReply(null)}
-                style={{
-                  position: "absolute",
-                  top: "8px",
-                  right: "10px",
-                  padding: "0 6px",
-                  border: "none",
-                  background: "transparent",
-                  color: "var(--text-muted)",
-                  fontSize: "16px",
-                  lineHeight: 1,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                ×
-              </button>
-              <p
-                style={{
-                  margin: "0 28px 8px 0",
-                  fontSize: "14px",
-                  lineHeight: 1.5,
-                  color: "var(--text)",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                }}
-              >
-                <span style={{ fontWeight: 700, color: "var(--text-h)" }}>
-                  You:{" "}
-                </span>
-                &ldquo;{lastCopilotReply.user}&rdquo;
-              </p>
-              <p
-                style={{
-                  margin: "0 28px 10px 0",
-                  fontSize: "14px",
-                  lineHeight: 1.5,
-                  color: "var(--text)",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                }}
-              >
-                <span style={{ fontWeight: 700, color: "var(--text-h)" }}>
-                  AI Assistant:{" "}
-                </span>
-                {lastCopilotReply.pending ? (
-                  <span>
-                    <span style={loadingDotStyle} aria-hidden>
-                      ●
-                    </span>{" "}
-                    Analyzing…
-                  </span>
-                ) : (
-                  lastCopilotReply.reply
-                )}
-              </p>
-              <button
-                type="button"
-                onClick={() => navigateToTab("chat")}
-                style={{
-                  padding: 0,
-                  border: "none",
-                  background: "none",
-                  color: "var(--accent)",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  textDecoration: "underline",
-                }}
-              >
-                Open in AI Assistant →
-              </button>
-            </div>
-          ) : null}
 
           <div
             style={{
