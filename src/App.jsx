@@ -1398,10 +1398,15 @@ function buildCopilotContextPack(ctx, meta) {
 }
 
 async function claudeChatReply(userMessage, packedContextString) {
-  const raw = await askClaude(userMessage, packedContextString, {
-    mode: "chat",
-  });
-  return typeof raw === "string" ? raw.trim() : String(raw ?? "").trim();
+  try {
+    const raw = await askClaude(userMessage, packedContextString, {
+      mode: "chat",
+    });
+    return typeof raw === "string" ? raw.trim() : String(raw ?? "").trim();
+  } catch (e) {
+    console.error("claudeChatReply failed:", e);
+    return "";
+  }
 }
 
 function buildAiExplainForStatChange(statChange, riskFindings) {
@@ -3115,11 +3120,6 @@ const CHAT_SUGGESTIONS = [
     prompt: "Summarize for my team",
   },
   {
-    id: "check-contracts",
-    label: "Check contracts",
-    prompt: "Are there any contract violations?",
-  },
-  {
     id: "tables-issues",
     label: "Which tables have issues?",
     prompt: "Which tables have issues?",
@@ -3433,7 +3433,6 @@ function App() {
   const [selectedChange, setSelectedChange] = useState(null);
   const [changeFeedFilter, setChangeFeedFilter] = useState("all");
   const [selectedColumn, setSelectedColumn] = useState(null);
-  const [commandResult, setCommandResult] = useState(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
   const [contracts, setContracts] = useState([
@@ -4365,31 +4364,32 @@ Return ONLY the SQL, no explanation.`;
   }
 
   function sendChatMessage(text) {
+    console.log("SEND:", text);
     const trimmed = text.trim();
-    console.log("Sending:", trimmed);
     if (!trimmed) return;
-    const handledCommandReply = tryHandleCopilotCommand(trimmed, {
-      columns,
-      statChanges,
-      riskFindings,
-      overviewHasData,
-      navigateToTab,
-      setChangeFeedFilter,
-      setSelectedChange,
-      setSelectedColumn,
-      setFeedFocusColumnKey,
-      selectDataSource,
-      selectedSource,
-      runSnowflakeDemoDataset,
-      triggerDrillNavigation,
-    });
+    let handledCommandReply = null;
+    try {
+      handledCommandReply = tryHandleCopilotCommand(trimmed, {
+        columns,
+        statChanges,
+        riskFindings,
+        overviewHasData,
+        navigateToTab,
+        setChangeFeedFilter,
+        setSelectedChange,
+        setSelectedColumn,
+        setFeedFocusColumnKey,
+        selectDataSource,
+        selectedSource,
+        runSnowflakeDemoDataset,
+        triggerDrillNavigation,
+      });
+    } catch (e) {
+      console.error("tryHandleCopilotCommand failed:", e);
+      handledCommandReply = null;
+    }
     const base = ++chatMessageIdRef.current;
     const assistantId = `${base}-a`;
-    setCommandResult({
-      assistantCommand: handledCommandReply != null,
-      query: trimmed,
-      replyPreview: "Analyzing...",
-    });
     setMessages((prev) => [
       ...prev,
       { id: `${base}-u`, role: "user", text: trimmed },
@@ -4402,47 +4402,75 @@ Return ONLY the SQL, no explanation.`;
       },
     ]);
     (async () => {
-      const sourceLabel = buildCopilotSourceLabel(
-        selectedSource,
-        snowflakeDemoConnected,
-        databricksDemoConnected,
-        snowflakeWarehouseTableDisplay,
-        databricksWarehouseTableDisplay
-      );
-      const tableLabel = buildCopilotTableLabel(
-        selectedSource,
-        snowflakeDemoConnected,
-        databricksDemoConnected,
-        snowflakeWarehouseTableDisplay,
-        databricksWarehouseTableDisplay
-      );
-      const workspaceSummary = buildWorkspaceSummaryForClaude(
-        tableBrowserSource,
-        tableBrowserList
-      );
-      const ctx = chatContextRef.current;
-      const packed = buildCopilotContextPack(ctx, {
-        sourceLabel,
-        tableLabel,
-        impactLines,
-        deterministicActionReply: handledCommandReply,
-        workspaceSummary,
-      });
       let finalText = "";
+      const ctx = chatContextRef.current;
       try {
-        finalText = await claudeChatReply(trimmed, packed);
+        const sourceLabel = buildCopilotSourceLabel(
+          selectedSource,
+          snowflakeDemoConnected,
+          databricksDemoConnected,
+          snowflakeWarehouseTableDisplay,
+          databricksWarehouseTableDisplay
+        );
+        const tableLabel = buildCopilotTableLabel(
+          selectedSource,
+          snowflakeDemoConnected,
+          databricksDemoConnected,
+          snowflakeWarehouseTableDisplay,
+          databricksWarehouseTableDisplay
+        );
+        const workspaceSummary = buildWorkspaceSummaryForClaude(
+          tableBrowserSource,
+          tableBrowserList
+        );
+        const packed = buildCopilotContextPack(ctx, {
+          sourceLabel,
+          tableLabel,
+          impactLines,
+          deterministicActionReply: handledCommandReply,
+          workspaceSummary,
+        });
+        try {
+          finalText = await claudeChatReply(trimmed, packed);
+          if (!finalText) {
+            throw new Error("empty claude reply");
+          }
+        } catch (e) {
+          console.error(e);
+          try {
+            finalText =
+              handledCommandReply ?? chatReply(trimmed, ctx);
+          } catch (e2) {
+            console.error("chatReply failed:", e2);
+            finalText =
+              typeof handledCommandReply === "string"
+                ? handledCommandReply
+                : "";
+          }
+        }
+        finalText = String(finalText ?? "").trim();
         if (!finalText) {
-          throw new Error("empty claude reply");
+          finalText =
+            "No reply received. Check your connection and API setup, then try again.";
         }
       } catch (e) {
-        console.error(e);
+        console.error("sendChatMessage reply pipeline failed:", e);
+        let fb = "";
+        try {
+          fb =
+            typeof handledCommandReply === "string" && handledCommandReply.trim()
+              ? handledCommandReply
+              : chatReply(trimmed, ctx);
+        } catch (e2) {
+          console.error("chatReply fallback failed:", e2);
+          fb =
+            typeof handledCommandReply === "string"
+              ? handledCommandReply
+              : "";
+        }
         finalText =
-          handledCommandReply ?? chatReply(trimmed, ctx);
-      }
-      finalText = String(finalText ?? "").trim();
-      if (!finalText) {
-        finalText =
-          "No reply received. Check your connection and API setup, then try again.";
+          String(fb ?? "").trim() ||
+          "Something went wrong. Try again, or check the browser console for details.";
       }
       setMessages((prev) =>
         prev.map((m) =>
@@ -4456,22 +4484,15 @@ Return ONLY the SQL, no explanation.`;
             : m
         )
       );
-      setCommandResult({
-        assistantCommand: handledCommandReply != null,
-        query: trimmed,
-        replyPreview: finalText.split("\n")[0]?.slice(0, 120) ?? "",
-      });
     })();
   }
 
   function handleCopilotSend(e) {
-    console.log("Sending:", copilotInput);
     if (e && typeof e.preventDefault === "function") {
       e.preventDefault();
     }
     if (copilotSubmitGuardRef.current) return;
     copilotSubmitGuardRef.current = true;
-    console.log("AI Assistant send triggered:", copilotInput);
     try {
       sendChatMessage(copilotInput);
       setCopilotInput("");
@@ -11409,71 +11430,37 @@ Return ONLY the SQL, no explanation.`;
               AI Assistant history
             </h2>
             <p style={{ ...governanceMutedStyle, marginBottom: "16px" }}>
-              Commands run from the sticky bar below. This tab is the full
-              transcript; deterministic AI assistant actions also update Overview,
-              Sources, and filters.
+              Use the sticky AI Assistant bar on every screen. Open{" "}
+              <strong>History</strong> there to read the full message list and
+              replies. Commands can also update Overview, Sources, and filters.
             </p>
 
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                minHeight: "200px",
-                maxHeight: "min(52vh, 420px)",
-                overflowY: "auto",
+                minHeight: "120px",
                 marginBottom: "12px",
-                padding: "10px",
+                padding: "14px",
                 borderRadius: "10px",
                 background: "var(--code-bg)",
                 border: "1px solid var(--border)",
+                fontSize: "14px",
+                lineHeight: 1.55,
+                color: "var(--text)",
               }}
             >
               {messages.length === 0 ? (
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "14px",
-                    color: "var(--text)",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Try the AI Assistant bar: compare, high risk only, go to
-                  sources, connect snowflake, explain why email is risky…
+                <p style={{ margin: 0 }}>
+                  No messages yet. Type in the bottom bar and press{" "}
+                  <strong>Run</strong> (or Enter), then expand{" "}
+                  <strong>History</strong> to see the conversation.
                 </p>
               ) : (
-                messages.map((m) => (
-                  <div
-                    key={m.id}
-                    style={{
-                      alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                      maxWidth: "88%",
-                      padding: "8px 12px",
-                      borderRadius: "10px",
-                      fontSize: "14px",
-                      lineHeight: m.role === "assistant" ? 1.55 : 1.45,
-                      color: "var(--text)",
-                      background:
-                        m.role === "user"
-                          ? "var(--accent-bg)"
-                          : "var(--social-bg)",
-                      border: "1px solid var(--border)",
-                      whiteSpace:
-                        m.role === "assistant" ? "pre-line" : "normal",
-                    }}
-                  >
-                    {m.analyzing ? (
-                      <span style={{ color: "var(--text)" }}>
-                        <span style={loadingDotStyle} aria-hidden>
-                          ●
-                        </span>{" "}
-                        Analyzing...
-                      </span>
-                    ) : (
-                      m.text
-                    )}
-                  </div>
-                ))
+                <p style={{ margin: 0 }}>
+                  You have {messages.length} message
+                  {messages.length === 1 ? "" : "s"} in this session. Expand{" "}
+                  <strong>History</strong> in the AI Assistant bar at the bottom
+                  of the window to read them.
+                </p>
               )}
             </div>
 
@@ -12017,11 +12004,6 @@ Return ONLY the SQL, no explanation.`;
                       selectedColumn}
                   </strong>
                 </>
-              ) : null}
-              {commandResult?.assistantCommand ? (
-                <span style={{ opacity: 0.9 }}> · Last: AI assistant action</span>
-              ) : commandResult ? (
-                <span style={{ opacity: 0.9 }}> · Last: AI Assistant reply</span>
               ) : null}
             </span>
           </p>

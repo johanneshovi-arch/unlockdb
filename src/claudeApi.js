@@ -101,52 +101,66 @@ ${contextBlock}`;
         ? CHAT_SYSTEM_PROMPT
         : EXPLAIN_SYSTEM_PROMPT;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens:
-        typeof options.maxTokens === "number"
-          ? options.maxTokens
-          : mode === "chat"
-            ? 512
-            : 1024,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: userContent,
-        },
-      ],
-    }),
-  });
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens:
+          typeof options.maxTokens === "number"
+            ? options.maxTokens
+            : mode === "chat"
+              ? 512
+              : 1024,
+        system: systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: userContent,
+          },
+        ],
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const block = Array.isArray(data?.content) ? data.content[0] : null;
+    const text = typeof block?.text === "string" ? block.text : "";
+
+    if (mode === "chat") {
+      return text.trim();
+    }
+
+    const parsed = parseClaudeAnalysisJsonText(text);
+    if (parsed) return parsed;
+
+    return {
+      whatChanged: text.trim().slice(0, 4000),
+      impact: "",
+      likelyCause: "",
+      suggestedAction: "",
+    };
+  } catch (e) {
+    console.error("askClaude failed:", e);
+    if (mode === "chat") {
+      return "";
+    }
+    return {
+      whatChanged: "AI analysis unavailable — request failed.",
+      impact: "",
+      likelyCause: "",
+      suggestedAction: "",
+    };
   }
-
-  const data = await response.json();
-  const text = data.content[0].text;
-
-  if (mode === "chat") {
-    return text.trim();
-  }
-
-  const parsed = parseClaudeAnalysisJsonText(text);
-  if (parsed) return parsed;
-
-  return {
-    whatChanged: text.trim().slice(0, 4000),
-    impact: "",
-    likelyCause: "",
-    suggestedAction: "",
-  };
 }
 
 export async function generateInvestigationSql(fullPrompt) {
