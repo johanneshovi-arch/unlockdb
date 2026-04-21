@@ -3436,8 +3436,6 @@ function App() {
   const [commandResult, setCommandResult] = useState(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
-  /** After current CSV (or sample) load — quick actions in AI assistant bar. */
-  const [csvUploadSuccessTip, setCsvUploadSuccessTip] = useState(null);
   const [contracts, setContracts] = useState([
     {
       id: "1",
@@ -4115,10 +4113,6 @@ function App() {
       setActiveSourceName("csv");
       setCurrentData(rows);
       setCurrentFileName(file.name);
-      setCsvUploadSuccessTip({
-        rows: rows.length,
-        columns: columnCount,
-      });
       input.value = "";
     });
   }
@@ -4128,7 +4122,6 @@ function App() {
     setCurrentData([]);
     setPreviousFileName("Not connected");
     setCurrentFileName("Not connected");
-    setCsvUploadSuccessTip(null);
     setSnowflakeDemoConnected(false);
     setDatabricksDemoConnected(false);
     resetSnowflakeWarehouseBrowserState();
@@ -4150,10 +4143,6 @@ function App() {
     setCurrentData(SAMPLE_CURRENT_DATA);
     setPreviousFileName("sample-previous.csv");
     setCurrentFileName("sample-current.csv");
-    setCsvUploadSuccessTip({
-      rows: SAMPLE_CURRENT_DATA.length,
-      columns: buildColumnsFromCurrentOnly(SAMPLE_CURRENT_DATA).length,
-    });
   }
 
   function selectDataSource(id) {
@@ -11829,94 +11818,6 @@ Return ONLY the SQL, no explanation.`;
             pointerEvents: "auto",
           }}
         >
-          {csvUploadSuccessTip ? (
-            <div
-              style={{
-                marginBottom: "10px",
-                padding: "12px 14px",
-                borderRadius: "8px",
-                border: "1px solid var(--border)",
-                background: "var(--social-bg)",
-                textAlign: "left",
-                position: "relative",
-              }}
-            >
-              <button
-                type="button"
-                aria-label="Dismiss"
-                onClick={() => setCsvUploadSuccessTip(null)}
-                style={{
-                  position: "absolute",
-                  top: "8px",
-                  right: "10px",
-                  padding: "0 6px",
-                  border: "none",
-                  background: "transparent",
-                  color: "var(--text-muted)",
-                  fontSize: "16px",
-                  lineHeight: 1,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                ×
-              </button>
-              <p
-                style={{
-                  margin: "0 28px 10px 0",
-                  fontSize: "14px",
-                  lineHeight: 1.45,
-                  color: "var(--text)",
-                }}
-              >
-                ✅ Data loaded — {csvUploadSuccessTip.rows} rows ·{" "}
-                {csvUploadSuccessTip.columns} columns
-                <br />
-                <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>
-                  What would you like to do?
-                </span>
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                <button
-                  type="button"
-                  className="app-ghost-btn"
-                  onClick={() => {
-                    sendChatMessage("What changed?");
-                    setCsvUploadSuccessTip(null);
-                  }}
-                  style={{
-                    padding: "8px 12px",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    borderRadius: "8px",
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  What changed?
-                </button>
-                <button
-                  type="button"
-                  className="app-ghost-btn"
-                  onClick={() => {
-                    sendChatMessage("What's the biggest risk?");
-                    setCsvUploadSuccessTip(null);
-                  }}
-                  style={{
-                    padding: "8px 12px",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    borderRadius: "8px",
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  Show risks
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           {copilotHistoryExpanded ? (
             <div
               style={{
@@ -12098,28 +11999,24 @@ Return ONLY the SQL, no explanation.`;
               opacity: 0.9,
             }}
           >
-            <span>
-              🔒 Only data statistics are shared with AI — never raw values
-            </span>
-            <span style={{ display: "block", marginTop: "4px", color: "var(--text)" }}>
+            🔒 Only data statistics are shared with AI — never raw values
+            <span style={{ color: "var(--text)" }}>
+              {" "}
+              · Feed:{" "}
               {changeFeedFilter === "high-risk" ? (
-                <span>
-                  Feed filter: <strong>HIGH risk only</strong>
-                </span>
+                <strong>HIGH risk only</strong>
               ) : (
-                <span>
-                  Feed filter: <strong>all</strong>
-                </span>
+                <strong>all</strong>
               )}
               {selectedColumn ? (
-                <span>
+                <>
                   {" "}
-                  · Column focus:{" "}
+                  · Column:{" "}
                   <strong>
                     {columns.find((c) => c.key === selectedColumn)?.label ??
                       selectedColumn}
                   </strong>
-                </span>
+                </>
               ) : null}
               {commandResult?.assistantCommand ? (
                 <span style={{ opacity: 0.9 }}> · Last: AI assistant action</span>
