@@ -3467,6 +3467,8 @@ function App() {
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
   /** Latest exchange shown in sticky bar (user + Unlockdb reply). */
   const [lastCopilotReply, setLastCopilotReply] = useState(null);
+  /** Latest assistant text shown above the sticky input (survives async). */
+  const [lastReply, setLastReply] = useState(null);
   /** After current CSV (or sample) load — quick actions in AI assistant bar. */
   const [csvUploadSuccessTip, setCsvUploadSuccessTip] = useState(null);
   const [contracts, setContracts] = useState([
@@ -3853,6 +3855,11 @@ function App() {
     contracts,
     contractViolations: contractViolationList,
   };
+
+  const chatContextRef = useRef(chatContext);
+  useEffect(() => {
+    chatContextRef.current = chatContext;
+  }, [chatContext]);
 
   useEffect(() => {
     setDismissed(false);
@@ -4408,7 +4415,9 @@ Return ONLY the SQL, no explanation.`;
 
   function sendChatMessage(text) {
     const trimmed = text.trim();
+    console.log("Sending:", trimmed);
     if (!trimmed) return;
+    setLastReply(null);
     if (messages.length === 0) {
       setCopilotHistoryExpanded(true);
     }
@@ -4469,7 +4478,8 @@ Return ONLY the SQL, no explanation.`;
         tableBrowserSource,
         tableBrowserList
       );
-      const packed = buildCopilotContextPack(chatContext, {
+      const ctx = chatContextRef.current;
+      const packed = buildCopilotContextPack(ctx, {
         sourceLabel,
         tableLabel,
         impactLines,
@@ -4484,11 +4494,17 @@ Return ONLY the SQL, no explanation.`;
         }
       } catch (e) {
         console.error(e);
-        finalText = handledCommandReply ?? chatReply(trimmed, chatContext);
+        finalText =
+          handledCommandReply ?? chatReply(trimmed, ctx);
+      }
+      finalText = String(finalText ?? "").trim();
+      if (!finalText) {
+        finalText =
+          "No reply received. Check your connection and API setup, then try again.";
       }
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === assistantId && m.pending
+          m.id === assistantId
             ? {
                 ...m,
                 text: finalText,
@@ -4503,6 +4519,7 @@ Return ONLY the SQL, no explanation.`;
         reply: finalText,
         pending: false,
       });
+      setLastReply(finalText);
       setCommandResult({
         assistantCommand: handledCommandReply != null,
         query: trimmed,
@@ -4512,6 +4529,7 @@ Return ONLY the SQL, no explanation.`;
   }
 
   function handleCopilotSend(e) {
+    console.log("Sending:", copilotInput);
     if (e && typeof e.preventDefault === "function") {
       e.preventDefault();
     }
@@ -4706,7 +4724,7 @@ Return ONLY the SQL, no explanation.`;
                   : {}),
               }}
             >
-              {tab.label}
+              {tab.id === "chat" ? "AI Assistant" : tab.label}
               {tab.id === "security" ? (
                 <span
                   aria-hidden
@@ -12308,7 +12326,10 @@ Return ONLY the SQL, no explanation.`;
               <button
                 type="button"
                 aria-label="Dismiss reply"
-                onClick={() => setLastCopilotReply(null)}
+                onClick={() => {
+                  setLastCopilotReply(null);
+                  setLastReply(null);
+                }}
                 style={{
                   position: "absolute",
                   top: "8px",
@@ -12351,7 +12372,7 @@ Return ONLY the SQL, no explanation.`;
                 }}
               >
                 <span style={{ fontWeight: 700, color: "var(--text-h)" }}>
-                  Unlockdb:{" "}
+                  AI Assistant:{" "}
                 </span>
                 {lastCopilotReply.pending ? (
                   <span>
@@ -12407,6 +12428,48 @@ Return ONLY the SQL, no explanation.`;
               </button>
             ))}
           </div>
+
+          {lastReply ? (
+            <div
+              style={{
+                padding: "10px 16px",
+                fontSize: "13px",
+                color: "var(--text)",
+                borderTop: "1px solid var(--border)",
+                background: "var(--bg)",
+                marginBottom: "8px",
+                borderRadius: "8px",
+                textAlign: "left",
+                position: "relative",
+                maxHeight: "120px",
+                overflowY: "auto",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+            >
+              <button
+                type="button"
+                aria-label="Dismiss latest reply"
+                onClick={() => setLastReply(null)}
+                style={{
+                  position: "absolute",
+                  top: "6px",
+                  right: "8px",
+                  padding: "0 6px",
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--text-muted)",
+                  fontSize: "16px",
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                ×
+              </button>
+              <strong style={{ color: "var(--text-h)" }}>AI:</strong> {lastReply}
+            </div>
+          ) : null}
 
           <form
             onSubmit={handleCopilotSend}
