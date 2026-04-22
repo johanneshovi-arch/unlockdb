@@ -1508,6 +1508,7 @@ When the user wants to perform an action, respond with JSON in this exact format
 }
 When no app action is needed, use: "action": null
 If the user only asks a question, respond with { "response": "your answer", "action": null }.
+When the user says "show table", "I can't see the table", "show me the data", "show rows", "see the data", "view the table", or similar: respond with action { "type": "SHOW_TABLE_DATA" } (not null).
 When the user asks to see the table, show data, view rows, or "show me the customers": execute action type SHOW_TABLE_DATA.
 When the user asks what changed, to see the diff, or to compare baseline vs current: execute SHOW_DIFF.
 Keep "response" short and friendly. Always return valid JSON only, no surrounding prose.`;
@@ -4988,11 +4989,18 @@ Return ONLY the SQL, no explanation.`;
   function executeAppAction(action) {
     console.log("[executeAppAction] incoming", action);
     if (action == null || typeof action !== "object") return;
-    const type = action.type;
-    if (type == null || type === "") {
+    let t0 = action.type;
+    if ((t0 == null || t0 === "") && action.Type != null) {
+      t0 = action.Type;
+    }
+    if (t0 == null || t0 === "") {
       console.warn("[executeAppAction] missing action.type, skipping");
       return;
     }
+    const type =
+      typeof t0 === "string"
+        ? t0.trim().toUpperCase().replace(/[\s-]+/g, "_")
+        : t0;
     switch (type) {
       case "NAVIGATE": {
         const tab = action.tab;
@@ -5082,6 +5090,7 @@ Return ONLY the SQL, no explanation.`;
         navigateToTab("sources");
         break;
       case "SHOW_TABLE_DATA":
+      case "SHOW_TABLE":
         setShowDataExplorer(true);
         setExplorerTab("current");
         navigateToTab("overview");
@@ -5500,7 +5509,7 @@ AVAILABLE AI ACTIONS (execute only with JSON; types must match exactly):
 - SUMMARIZE: { "type": "SUMMARIZE" }
 - DISCONNECT: { "type": "DISCONNECT" }
 - UPLOAD_CSV: { "type": "UPLOAD_CSV" } — navigates to Sources and selects the CSV uploader
-- SHOW_TABLE_DATA: { "type": "SHOW_TABLE_DATA" } — opens the Data Explorer panel (Current snapshot table)
+- SHOW_TABLE_DATA: { "type": "SHOW_TABLE_DATA" } — opens the Data Explorer panel (Current snapshot table); "SHOW_TABLE" is accepted as an alias
 - SHOW_DIFF: { "type": "SHOW_DIFF" } — opens the Data Explorer on the Diff view (new / changed / removed rows)
 
 When user asks about CSV:
@@ -5768,6 +5777,29 @@ When user asks about CSV:
                 ; dig into raw rows in the details section below.
               </p>
             </section>
+
+            {showDataExplorer ? (
+              <div
+                style={{
+                  maxWidth: "44rem",
+                  width: "100%",
+                  margin: "0 auto 20px",
+                  boxSizing: "border-box",
+                }}
+              >
+                <DataExplorerPanel
+                  open
+                  explorerTitle={dataExplorerTitle}
+                  explorerTab={explorerTab}
+                  onSetTab={setExplorerTab}
+                  onClose={() => setShowDataExplorer(false)}
+                  currentData={currentData}
+                  previousData={previousData}
+                  columnKeys={dataExplorerColumnKeys}
+                  diffRows={explorerDiffRows}
+                />
+              </div>
+            ) : null}
 
             {!overviewHasData ? (
               selectedSource === null ? (
@@ -7064,27 +7096,6 @@ When user asks about CSV:
                     )}
                   </div>
                 ) : null}
-
-                <div
-                  style={{
-                    maxWidth: "44rem",
-                    width: "100%",
-                    margin: "0 auto 0",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <DataExplorerPanel
-                    open={showDataExplorer}
-                    explorerTitle={dataExplorerTitle}
-                    explorerTab={explorerTab}
-                    onSetTab={setExplorerTab}
-                    onClose={() => setShowDataExplorer(false)}
-                    currentData={currentData}
-                    previousData={previousData}
-                    columnKeys={dataExplorerColumnKeys}
-                    diffRows={explorerDiffRows}
-                  />
-                </div>
 
                 <h2
                   style={{
