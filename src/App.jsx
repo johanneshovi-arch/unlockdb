@@ -11470,7 +11470,8 @@ Return ONLY the SQL, no explanation.`;
                     lineHeight: 1.5,
                   }}
                 >
-                  No messages yet. Send a message below or use a suggestion.
+                  No messages yet. Pick a suggestion or use the AI Assistant
+                  bar at the bottom of the window.
                 </p>
               ) : (
                 messages.map((m) => (
@@ -11518,6 +11519,18 @@ Return ONLY the SQL, no explanation.`;
               <div ref={chatEndTabRef} />
             </div>
 
+            <p
+              style={{
+                margin: 0,
+                textAlign: "center",
+                fontSize: "12px",
+                lineHeight: 1.4,
+                color: "var(--text-muted)",
+              }}
+            >
+              ↓ Type your question in the bar below
+            </p>
+
             <div
               style={{
                 display: "flex",
@@ -11537,71 +11550,6 @@ Return ONLY the SQL, no explanation.`;
                 </button>
               ))}
             </div>
-
-            <form
-              onSubmit={handleCopilotSend}
-              noValidate
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  alignItems: "stretch",
-                  flexWrap: "wrap",
-                }}
-              >
-                <input
-                  type="text"
-                  name="unlockdb-ai-assistant-tab"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={copilotInput}
-                  onChange={(e) => setCopilotInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter" || e.shiftKey) return;
-                    if (e.nativeEvent?.isComposing) return;
-                    e.preventDefault();
-                    const form = e.currentTarget.form;
-                    if (form && typeof form.requestSubmit === "function") {
-                      form.requestSubmit();
-                    } else {
-                      handleCopilotSend(null);
-                    }
-                  }}
-                  placeholder="Ask anything about your data or workspace…"
-                  aria-label="AI Assistant message"
-                  className="unlockdb-field"
-                  style={{
-                    flex: 1,
-                    minWidth: "200px",
-                    minHeight: "52px",
-                    padding: "14px 16px",
-                    borderRadius: "10px",
-                    fontSize: "16px",
-                    lineHeight: 1.4,
-                  }}
-                />
-                <button
-                  type="submit"
-                  className="app-primary-btn"
-                  style={{
-                    padding: "14px 22px",
-                    borderRadius: "10px",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                    minHeight: "52px",
-                    flexShrink: 0,
-                  }}
-                >
-                  Send
-                </button>
-              </div>
-            </form>
           </section>
         )}
 
