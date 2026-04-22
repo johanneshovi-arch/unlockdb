@@ -1508,6 +1508,8 @@ When the user wants to perform an action, respond with JSON in this exact format
 }
 When no app action is needed, use: "action": null
 If the user only asks a question, respond with { "response": "your answer", "action": null }.
+When the user asks to see the table, show data, view rows, or "show me the customers": execute action type SHOW_TABLE_DATA.
+When the user asks what changed, to see the diff, or to compare baseline vs current: execute SHOW_DIFF.
 Keep "response" short and friendly. Always return valid JSON only, no surrounding prose.`;
 
 async function claudeChatReply(userMessage, packedContextString, claudeOptions = {}) {
@@ -2372,6 +2374,447 @@ function stableRowFingerprint(row, columnKeys) {
     o[k] = row?.[k] ?? null;
   }
   return JSON.stringify(o);
+}
+
+/**
+ * Data Explorer diff: same id vs. index contract as {@link analyzeRowLevelDiff}.
+ */
+function buildDataExplorerDiffRows(previousData, currentData, columns) {
+  const out = [];
+  if (!Array.isArray(previousData) || !Array.isArray(currentData) || !columns?.length) {
+    return out;
+  }
+  const colKeys = columns.map((c) => c.key);
+  const idKey = findIdentifierColumnKey(columns);
+  if (idKey != null) {
+    const prevMap = new Map();
+    for (const row of previousData) {
+      const v = row?.[idKey];
+      if (v == null || v === "") continue;
+      prevMap.set(String(v), row);
+    }
+    const currMap = new Map();
+    for (const row of currentData) {
+      const v = row?.[idKey];
+      if (v == null || v === "") continue;
+      currMap.set(String(v), row);
+    }
+    for (let i = 0; i < currentData.length; i++) {
+      const row = currentData[i];
+      const v = row?.[idKey];
+      if (v == null || v === "") {
+        const p = previousData[i];
+        if (p === undefined) {
+          out.push({ kind: "new", prev: null, curr: row, key: `cidx-${i}` });
+        } else {
+          const ch = colKeys.some((k) => !cellEqual(p?.[k], row?.[k]));
+          out.push({
+            kind: ch ? "changed" : "unchanged",
+            prev: p,
+            curr: row,
+            key: `bidx-${i}`,
+          });
+        }
+        continue;
+      }
+      const id = String(v);
+      if (!prevMap.has(id)) {
+        out.push({ kind: "new", prev: null, curr: row, key: `n-${id}` });
+      } else {
+        const p = prevMap.get(id);
+        const ch = colKeys.some((k) => !cellEqual(p?.[k], row?.[k]));
+        out.push({
+          kind: ch ? "changed" : "unchanged",
+          prev: p,
+          curr: row,
+          key: `m-${id}`,
+        });
+      }
+    }
+    for (const row of previousData) {
+      const v = row?.[idKey];
+      if (v == null || v === "") continue;
+      if (!currMap.has(String(v))) {
+        out.push({ kind: "removed", prev: row, curr: null, key: `r-${String(v)}` });
+      }
+    }
+    for (let i = currentData.length; i < previousData.length; i++) {
+      const p = previousData[i];
+      const v = p?.[idKey];
+      if (v == null || v === "") {
+        out.push({ kind: "removed", prev: p, curr: null, key: `t-${i}` });
+      }
+    }
+    return out;
+  }
+  const m = Math.min(previousData.length, currentData.length);
+  for (let i = 0; i < m; i++) {
+    const p = previousData[i];
+    const c = currentData[i];
+    const ch = colKeys.some((k) => !cellEqual(p?.[k], c?.[k]));
+    out.push({
+      kind: ch ? "changed" : "unchanged",
+      prev: p,
+      curr: c,
+      key: `ix-${i}`,
+    });
+  }
+  for (let i = m; i < currentData.length; i++) {
+    out.push({ kind: "new", prev: null, curr: currentData[i], key: `ixn-${i}` });
+  }
+  for (let i = m; i < previousData.length; i++) {
+    out.push({
+      kind: "removed",
+      prev: previousData[i],
+      curr: null,
+      key: `ixr-${i}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * Data Explorer panel (Overview): current / previous / diff tables.
+ */
+function DataExplorerPanel({
+  open,
+  explorerTitle,
+  explorerTab,
+  onSetTab,
+  onClose,
+  currentData,
+  previousData,
+  columnKeys,
+  diffRows,
+}) {
+  if (!open) return null;
+  const tableShellStyle = {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontFamily:
+      "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: "13px",
+  };
+  const thStyle = {
+    position: "sticky",
+    top: 0,
+    zIndex: 2,
+    background: "#1a1a1a",
+    color: "#888",
+    padding: "8px 12px",
+    borderBottom: "1px solid #2a2a2a",
+    textAlign: "left",
+    fontSize: "11px",
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+  };
+  const tdStyle = {
+    padding: "6px 12px",
+    borderBottom: "1px solid #1a1a1a",
+    color: "#e0e0e0",
+    fontSize: "13px",
+  };
+  const rowNew = {
+    background: "rgba(34, 197, 94, 0.08)",
+    borderLeft: "3px solid #22c55e",
+  };
+  const rowDel = {
+    background: "rgba(239, 68, 68, 0.08)",
+    borderLeft: "3px solid #ef4444",
+  };
+  const rowCh = {
+    background: "rgba(245, 158, 11, 0.08)",
+    borderLeft: "3px solid #f59e0b",
+  };
+
+  const nRows =
+    explorerTab === "current"
+      ? currentData.length
+      : explorerTab === "previous"
+        ? previousData.length
+        : diffRows.length;
+  const nCols = columnKeys.length;
+  const tabBtn = (id, label) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => onSetTab(id)}
+      style={{
+        padding: "6px 12px",
+        fontSize: "12px",
+        fontWeight: 600,
+        borderRadius: "6px",
+        border: `1px solid ${explorerTab === id ? "#3b82f6" : "rgba(255,255,255,0.2)"}`,
+        background: explorerTab === id ? "rgba(59, 130, 246, 0.15)" : "rgba(0,0,0,0.2)",
+        color: explorerTab === id ? "#93c5fd" : "var(--text)",
+        fontFamily: "inherit",
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const simpleTable = (data, mode) => (
+    <div style={{ minWidth: 0, maxWidth: "100%" }}>
+      <table style={tableShellStyle}>
+        <thead>
+          <tr>
+            {columnKeys.map((col) => (
+              <th key={String(col)} style={thStyle}>
+                {String(col)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.length === 0 ? (
+            <tr>
+              <td
+                colSpan={Math.max(1, columnKeys.length)}
+                style={{ ...tdStyle, color: "#888", fontStyle: "italic" }}
+              >
+                No rows.
+              </td>
+            </tr>
+          ) : (
+            data.map((row, i) => (
+              <tr
+                key={mode + "-" + i}
+                style={{
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#151515";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "";
+                }}
+              >
+                {columnKeys.map((col) => {
+                  const v = row?.[col];
+                  const isNull = v == null || v === undefined;
+                  const isEmpty = v === "";
+                  return (
+                    <td
+                      key={String(col) + i}
+                      style={{
+                        ...tdStyle,
+                        color: isNull || isEmpty ? "#666" : "inherit",
+                        fontStyle: isNull ? "italic" : "normal",
+                      }}
+                    >
+                      {isNull ? "NULL" : v}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        maxWidth: "100%",
+        margin: "0 auto 20px",
+        width: "100%",
+        maxHeight: "400px",
+        display: "flex",
+        flexDirection: "column",
+        background: "#0d0d0d",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "10px",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.2)",
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          padding: "10px 14px",
+          borderBottom: "1px solid #1a1a1a",
+          background: "rgba(0,0,0,0.35)",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: "15px",
+              fontWeight: 700,
+              color: "var(--text-h)",
+              marginBottom: "2px",
+            }}
+          >
+            {explorerTitle}
+          </div>
+          <div style={{ fontSize: "12px", color: "#9ca3af" }}>
+            {nRows} rows · {nCols} columns
+          </div>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          {tabBtn("current", "Current")}
+          {tabBtn("previous", "Previous")}
+          {tabBtn("diff", "Diff")}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Data Explorer"
+            style={{
+              marginLeft: "6px",
+              width: "32px",
+              height: "32px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "var(--text-h)",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "18px",
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <div style={{ padding: 0, flex: 1, minHeight: 0, overflow: "auto" }}>
+        {explorerTab === "current" ? (
+          simpleTable(currentData, "c")
+        ) : explorerTab === "previous" ? (
+          simpleTable(previousData, "p")
+        ) : diffRows.length === 0 ? (
+          <p
+            style={{ margin: "12px 14px", color: "#888", fontSize: "13px" }}
+          >
+            No diff: load baseline and current snapshots, or the datasets are
+            identical in structure.
+          </p>
+        ) : (
+          <div style={{ minWidth: 0, width: "100%" }}>
+              <table style={tableShellStyle}>
+                <thead>
+                  <tr>
+                    {columnKeys.map((col) => (
+                      <th key={String(col) + "d"} style={thStyle}>
+                        {String(col)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {diffRows.map((dr) => {
+                    const rowSt =
+                      dr.kind === "new"
+                        ? rowNew
+                        : dr.kind === "removed"
+                          ? rowDel
+                          : dr.kind === "changed"
+                            ? rowCh
+                            : { borderLeft: "3px solid transparent" };
+                    return (
+                      <tr
+                        key={dr.key}
+                        style={{
+                          ...rowSt,
+                          transition: "background 0.1s",
+                        }}
+                      >
+                        {columnKeys.map((col) => {
+                          if (dr.kind === "removed") {
+                            const v = dr.prev?.[col];
+                            const isN = v == null || v === undefined;
+                            const isE = v === "";
+                            return (
+                              <td
+                                key={String(col) + "rm"}
+                                style={{
+                                  ...tdStyle,
+                                  color: isN || isE ? "#666" : "inherit",
+                                  fontStyle: isN ? "italic" : "normal",
+                                }}
+                              >
+                                {isN ? "NULL" : v}
+                              </td>
+                            );
+                          }
+                          const o = dr.prev?.[col];
+                          const c = dr.curr?.[col];
+                          if (dr.kind === "new" || dr.kind === "unchanged") {
+                            const isN = c == null || c === undefined;
+                            const isE = c === "";
+                            return (
+                              <td
+                                key={String(col) + "n"}
+                                style={{
+                                  ...tdStyle,
+                                  color: isN || isE ? "#666" : "inherit",
+                                  fontStyle: isN ? "italic" : "normal",
+                                }}
+                              >
+                                {isN ? "NULL" : c}
+                              </td>
+                            );
+                          }
+                          if (dr.kind === "changed" && !cellEqual(o, c)) {
+                            const fmt = (x) => {
+                              if (x == null || x === undefined) return "NULL";
+                              if (x === "") return "∅";
+                              return String(x);
+                            };
+                            return (
+                              <td key={String(col) + "ch"} style={tdStyle}>
+                                <span style={{ color: "#9ca3af" }}>{fmt(o)}</span>
+                                <span style={{ color: "#6b7280" }}> → </span>
+                                <span style={{ color: "#d97706", fontWeight: 600 }}>
+                                  {fmt(c === undefined ? null : c)}
+                                </span>
+                              </td>
+                            );
+                          }
+                          const isN2 = c == null || c === undefined;
+                          const isE2 = c === "";
+                          return (
+                            <td
+                              key={String(col) + "eq"}
+                              style={{
+                                ...tdStyle,
+                                color: isN2 || isE2 ? "#666" : "inherit",
+                                fontStyle: isN2 ? "italic" : "normal",
+                              }}
+                            >
+                              {isN2 ? "NULL" : c}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -3552,6 +3995,8 @@ function App() {
   const [selectedChange, setSelectedChange] = useState(null);
   const [changeFeedFilter, setChangeFeedFilter] = useState("all");
   const [overviewKey, setOverviewKey] = useState(0);
+  const [showDataExplorer, setShowDataExplorer] = useState(false);
+  const [explorerTab, setExplorerTab] = useState("current");
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(true);
@@ -3638,6 +4083,46 @@ function App() {
     () => buildColumnsFromCurrentOnly(currentData),
     [currentData]
   );
+  const dataExplorerColumnKeys = useMemo(
+    () => columns.map((c) => c.key),
+    [columns]
+  );
+  const explorerDiffRows = useMemo(
+    () => buildDataExplorerDiffRows(previousData, currentData, columns),
+    [previousData, currentData, columns]
+  );
+  const dataExplorerTitle = useMemo(() => {
+    if (
+      activeSourceName === "snowflake" &&
+      String(snowflakeWarehouseTableDisplay ?? "").trim()
+    ) {
+      return `Data Explorer — ${String(snowflakeWarehouseTableDisplay).trim()}`;
+    }
+    if (
+      activeSourceName === "databricks" &&
+      String(databricksWarehouseTableDisplay ?? "").trim()
+    ) {
+      return `Data Explorer — ${String(
+        databricksWarehouseTableDisplay
+      ).trim()}`;
+    }
+    if (
+      String(currentFileName ?? "").trim() &&
+      currentFileName !== "Not connected"
+    ) {
+      return `Data Explorer — ${String(currentFileName).trim()}`;
+    }
+    if (String(previousFileName ?? "").includes(".csv")) {
+      return "Data Explorer — uploaded CSV";
+    }
+    return "Data Explorer — current snapshot";
+  }, [
+    activeSourceName,
+    snowflakeWarehouseTableDisplay,
+    databricksWarehouseTableDisplay,
+    currentFileName,
+    previousFileName,
+  ]);
 
   const insights = useMemo(
     () => columnInsights(currentData, columns),
@@ -4596,6 +5081,18 @@ Return ONLY the SQL, no explanation.`;
         setActiveSourceName("csv");
         navigateToTab("sources");
         break;
+      case "SHOW_TABLE_DATA":
+        setShowDataExplorer(true);
+        setExplorerTab("current");
+        navigateToTab("overview");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        break;
+      case "SHOW_DIFF":
+        setShowDataExplorer(true);
+        setExplorerTab("diff");
+        navigateToTab("overview");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        break;
       case "DISCONNECT":
         setPreviousData([]);
         setCurrentData([]);
@@ -5003,6 +5500,8 @@ AVAILABLE AI ACTIONS (execute only with JSON; types must match exactly):
 - SUMMARIZE: { "type": "SUMMARIZE" }
 - DISCONNECT: { "type": "DISCONNECT" }
 - UPLOAD_CSV: { "type": "UPLOAD_CSV" } — navigates to Sources and selects the CSV uploader
+- SHOW_TABLE_DATA: { "type": "SHOW_TABLE_DATA" } — opens the Data Explorer panel (Current snapshot table)
+- SHOW_DIFF: { "type": "SHOW_DIFF" } — opens the Data Explorer on the Diff view (new / changed / removed rows)
 
 When user asks about CSV:
 → Explain they can upload two CSV files
@@ -5467,19 +5966,48 @@ When user asks about CSV:
                   >
                     <div
                       style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
                         fontSize: "14px",
                         fontWeight: 600,
                         color: "var(--text-h)",
                         lineHeight: 1.45,
                       }}
                     >
-                      <span style={{ color: "var(--text)" }}>Source: </span>
-                      Snowflake demo
-                      <span style={{ margin: "0 8px", color: "var(--border)" }}>
-                        ·
+                      <span>
+                        <span style={{ color: "var(--text)" }}>Source: </span>
+                        Snowflake demo
+                        <span
+                          style={{ margin: "0 8px", color: "var(--border)" }}
+                        >
+                          ·
+                        </span>
+                        <span style={{ color: "var(--text)" }}>Table: </span>
+                        {snowflakeWarehouseTableDisplay ?? "—"}
                       </span>
-                      <span style={{ color: "var(--text)" }}>Table: </span>
-                      {snowflakeWarehouseTableDisplay ?? "—"}
+                      {overviewHasData && currentData.length > 0 ? (
+                        <button
+                          type="button"
+                          className="app-ghost-btn"
+                          onClick={() => {
+                            setShowDataExplorer(true);
+                            setExplorerTab("current");
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            borderRadius: "6px",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          📊 Show data
+                        </button>
+                      ) : null}
                     </div>
                     <div
                       style={{
@@ -5524,19 +6052,48 @@ When user asks about CSV:
                   >
                     <div
                       style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
                         fontSize: "14px",
                         fontWeight: 600,
                         color: "var(--text-h)",
                         lineHeight: 1.45,
                       }}
                     >
-                      <span style={{ color: "var(--text)" }}>Source: </span>
-                      Databricks demo
-                      <span style={{ margin: "0 8px", color: "var(--border)" }}>
-                        ·
+                      <span>
+                        <span style={{ color: "var(--text)" }}>Source: </span>
+                        Databricks demo
+                        <span
+                          style={{ margin: "0 8px", color: "var(--border)" }}
+                        >
+                          ·
+                        </span>
+                        <span style={{ color: "var(--text)" }}>Table: </span>
+                        {databricksWarehouseTableDisplay ?? "—"}
                       </span>
-                      <span style={{ color: "var(--text)" }}>Table: </span>
-                      {databricksWarehouseTableDisplay ?? "—"}
+                      {overviewHasData && currentData.length > 0 ? (
+                        <button
+                          type="button"
+                          className="app-ghost-btn"
+                          onClick={() => {
+                            setShowDataExplorer(true);
+                            setExplorerTab("current");
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            borderRadius: "6px",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          📊 Show data
+                        </button>
+                      ) : null}
                     </div>
                     <div
                       style={{
@@ -5581,14 +6138,41 @@ When user asks about CSV:
                   >
                     <div
                       style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "10px",
                         fontSize: "14px",
                         fontWeight: 600,
                         color: "var(--text-h)",
                         lineHeight: 1.45,
                       }}
                     >
-                      <span style={{ color: "var(--text)" }}>Source: </span>
-                      CSV upload
+                      <span>
+                        <span style={{ color: "var(--text)" }}>Source: </span>
+                        CSV upload
+                      </span>
+                      {overviewHasData && currentData.length > 0 ? (
+                        <button
+                          type="button"
+                          className="app-ghost-btn"
+                          onClick={() => {
+                            setShowDataExplorer(true);
+                            setExplorerTab("current");
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            borderRadius: "6px",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          📊 Show data
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
@@ -6480,6 +7064,27 @@ When user asks about CSV:
                     )}
                   </div>
                 ) : null}
+
+                <div
+                  style={{
+                    maxWidth: "44rem",
+                    width: "100%",
+                    margin: "0 auto 0",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <DataExplorerPanel
+                    open={showDataExplorer}
+                    explorerTitle={dataExplorerTitle}
+                    explorerTab={explorerTab}
+                    onSetTab={setExplorerTab}
+                    onClose={() => setShowDataExplorer(false)}
+                    currentData={currentData}
+                    previousData={previousData}
+                    columnKeys={dataExplorerColumnKeys}
+                    diffRows={explorerDiffRows}
+                  />
+                </div>
 
                 <h2
                   style={{
