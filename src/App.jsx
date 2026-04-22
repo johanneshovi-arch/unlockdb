@@ -6001,8 +6001,6 @@ When user asks about CSV:
                         display: "flex",
                         flexWrap: "wrap",
                         alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "10px",
                         fontSize: "14px",
                         fontWeight: 600,
                         color: "var(--text-h)",
@@ -6020,26 +6018,44 @@ When user asks about CSV:
                         <span style={{ color: "var(--text)" }}>Table: </span>
                         {snowflakeWarehouseTableDisplay ?? "—"}
                       </span>
-                      {overviewHasData && currentData.length > 0 ? (
-                        <button
-                          type="button"
-                          className="app-ghost-btn"
-                          onClick={() => {
-                            setShowDataExplorer(true);
-                            setExplorerTab("current");
-                          }}
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            borderRadius: "6px",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
-                          }}
-                        >
-                          📊 Show data
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDataExplorer(true);
+                          setExplorerTab("current");
+                        }}
+                        style={{
+                          background: "#1a1a1a",
+                          border: "1px solid #2a2a2a",
+                          color: "#888",
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          marginLeft: "12px",
+                        }}
+                      >
+                        📊 Show data
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDataExplorer(true);
+                          setExplorerTab("diff");
+                        }}
+                        style={{
+                          background: "#1a1a1a",
+                          border: "1px solid #2a2a2a",
+                          color: "#888",
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          marginLeft: "8px",
+                        }}
+                      >
+                        🔀 Show diff
+                      </button>
                     </div>
                     <div
                       style={{
@@ -6087,8 +6103,6 @@ When user asks about CSV:
                         display: "flex",
                         flexWrap: "wrap",
                         alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "10px",
                         fontSize: "14px",
                         fontWeight: 600,
                         color: "var(--text-h)",
@@ -6106,26 +6120,44 @@ When user asks about CSV:
                         <span style={{ color: "var(--text)" }}>Table: </span>
                         {databricksWarehouseTableDisplay ?? "—"}
                       </span>
-                      {overviewHasData && currentData.length > 0 ? (
-                        <button
-                          type="button"
-                          className="app-ghost-btn"
-                          onClick={() => {
-                            setShowDataExplorer(true);
-                            setExplorerTab("current");
-                          }}
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            borderRadius: "6px",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
-                          }}
-                        >
-                          📊 Show data
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDataExplorer(true);
+                          setExplorerTab("current");
+                        }}
+                        style={{
+                          background: "#1a1a1a",
+                          border: "1px solid #2a2a2a",
+                          color: "#888",
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          marginLeft: "12px",
+                        }}
+                      >
+                        📊 Show data
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDataExplorer(true);
+                          setExplorerTab("diff");
+                        }}
+                        style={{
+                          background: "#1a1a1a",
+                          border: "1px solid #2a2a2a",
+                          color: "#888",
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          marginLeft: "8px",
+                        }}
+                      >
+                        🔀 Show diff
+                      </button>
                     </div>
                     <div
                       style={{
@@ -6173,8 +6205,6 @@ When user asks about CSV:
                         display: "flex",
                         flexWrap: "wrap",
                         alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "10px",
                         fontSize: "14px",
                         fontWeight: 600,
                         color: "var(--text-h)",
@@ -6185,26 +6215,44 @@ When user asks about CSV:
                         <span style={{ color: "var(--text)" }}>Source: </span>
                         CSV upload
                       </span>
-                      {overviewHasData && currentData.length > 0 ? (
-                        <button
-                          type="button"
-                          className="app-ghost-btn"
-                          onClick={() => {
-                            setShowDataExplorer(true);
-                            setExplorerTab("current");
-                          }}
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            borderRadius: "6px",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
-                          }}
-                        >
-                          📊 Show data
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDataExplorer(true);
+                          setExplorerTab("current");
+                        }}
+                        style={{
+                          background: "#1a1a1a",
+                          border: "1px solid #2a2a2a",
+                          color: "#888",
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          marginLeft: "12px",
+                        }}
+                      >
+                        📊 Show data
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDataExplorer(true);
+                          setExplorerTab("diff");
+                        }}
+                        style={{
+                          background: "#1a1a1a",
+                          border: "1px solid #2a2a2a",
+                          color: "#888",
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          marginLeft: "8px",
+                        }}
+                      >
+                        🔀 Show diff
+                      </button>
                     </div>
                   </div>
                 ) : null}
