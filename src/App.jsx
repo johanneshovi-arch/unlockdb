@@ -3428,7 +3428,6 @@ function App() {
   const currentCsvInputRef = useRef(null);
   const overviewDetailsRef = useRef(null);
   const chatMessageIdRef = useRef(0);
-  const chatEndTabRef = useRef(null);
   const chatEndStickyRef = useRef(null);
   const copilotSubmitGuardRef = useRef(false);
   const [feedFocusColumnKey, setFeedFocusColumnKey] = useState(null);
@@ -3823,7 +3822,6 @@ function App() {
   }, [chatContext]);
 
   useEffect(() => {
-    chatEndTabRef.current?.scrollIntoView({ behavior: "smooth" });
     chatEndStickyRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
@@ -4578,7 +4576,6 @@ Return ONLY the SQL, no explanation.`;
     { id: "overview", label: "Overview" },
     { id: "about", label: "How it works" },
     { id: "sources", label: "Sources" },
-    { id: "chat", label: "AI Assistant" },
     { id: "governance", label: "Governance" },
     { id: "settings", label: "Settings" },
     { id: "security", label: "🔒 Security" },
@@ -11415,140 +11412,6 @@ Return ONLY the SQL, no explanation.`;
                   </li>
                 ))}
               </ul>
-            </div>
-          </section>
-        )}
-
-        {activeTab === "chat" && (
-          <section
-            style={{
-              maxWidth: "42rem",
-              margin: "0 auto",
-              textAlign: "left",
-              paddingBottom: "160px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "20px",
-                fontWeight: 600,
-                color: "var(--text-h)",
-                margin: "0 0 4px",
-              }}
-            >
-              AI Assistant
-            </h2>
-            <p style={{ ...governanceMutedStyle, margin: 0 }}>
-              Same conversation as the sticky bar. Deterministic commands can
-              also update Overview, Sources, and filters.
-            </p>
-
-            <div
-              style={{
-                flex: 1,
-                minHeight: "min(45vh, 400px)",
-                maxHeight: "min(55vh, 520px)",
-                overflowY: "auto",
-                padding: "12px",
-                borderRadius: "12px",
-                background: "var(--code-bg)",
-                border: "1px solid var(--border)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-              }}
-            >
-              {messages.length === 0 ? (
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "14px",
-                    color: "var(--text-muted)",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  No messages yet. Pick a suggestion or use the AI Assistant
-                  bar at the bottom of the window.
-                </p>
-              ) : (
-                messages.map((m) => (
-                  <div
-                    key={m.id}
-                    style={{
-                      padding: "12px 14px",
-                      borderRadius: "10px",
-                      background: "var(--social-bg)",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        color: "var(--text-h)",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      {m.role === "user" ? "You:" : "AI Assistant:"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "15px",
-                        lineHeight: 1.55,
-                        color: "var(--text)",
-                        whiteSpace: m.role === "assistant" ? "pre-line" : "normal",
-                      }}
-                    >
-                      {m.analyzing ? (
-                        <span>
-                          <span style={loadingDotStyle} aria-hidden>
-                            ●
-                          </span>{" "}
-                          Analyzing...
-                        </span>
-                      ) : (
-                        m.text
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-              <div ref={chatEndTabRef} />
-            </div>
-
-            <p
-              style={{
-                margin: 0,
-                textAlign: "center",
-                fontSize: "12px",
-                lineHeight: 1.4,
-                color: "var(--text-muted)",
-              }}
-            >
-              ↓ Type your question in the bar below
-            </p>
-
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "8px",
-              }}
-            >
-              {CHAT_SUGGESTIONS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="chat-suggestion-btn"
-                  onClick={() => sendChatMessage(s.prompt)}
-                  style={chatSuggestionButtonStyle}
-                >
-                  {s.label}
-                </button>
-              ))}
             </div>
           </section>
         )}
