@@ -1,0 +1,213 @@
+/* Design A — Terminal / CLI (standalone preview) */
+
+/* Standalone preview: win over #root h1 and global text-align */
+#root .design-a {
+  min-height: 100svh;
+  background: #020202;
+  color: #00ff88;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 15px;
+  line-height: 1.5;
+  box-sizing: border-box;
+  text-align: left;
+  width: 100%;
+  margin: 0;
+}
+
+.design-a *,
+.design-a *::before,
+.design-a *::after {
+  box-sizing: border-box;
+  border-radius: 0;
+}
+
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.design-a__cursor {
+  display: inline-block;
+  color: #00ff88;
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  font-weight: 700;
+}
+
+.design-a__muted {
+  color: #005533;
+}
+
+.design-a__danger {
+  color: #ff3333;
+}
+
+.design-a__inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+.design-a__version {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #00ff88;
+  margin: 0 0 24px;
+  border-bottom: 1px solid #003322;
+  padding-bottom: 12px;
+}
+
+#root .design-a h1 {
+  font-family: "Courier New", Courier, monospace !important;
+  text-transform: uppercase;
+  color: #00ff88 !important;
+  font-size: clamp(20px, 4vw, 28px) !important;
+  line-height: 1.25;
+  margin: 0 0 12px;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+}
+
+#root .design-a h2 {
+  font-size: 14px;
+  margin-bottom: 16px;
+  border-left: 2px solid #00ff88;
+  padding-left: 12px;
+  font-weight: 700 !important;
+  margin-top: 0;
+  font-family: "Courier New", Courier, monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #00ff88 !important;
+}
+
+#root .design-a h3 {
+  font-size: 12px;
+  margin-bottom: 8px;
+  font-weight: 700 !important;
+  font-family: "Courier New", Courier, monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #00ff88 !important;
+}
+
+.design-a__sub {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #005533;
+  margin: 0 0 28px;
+  max-width: 36em;
+}
+
+.design-a__sub strong,
+.design-a__sub .design-a__prompt {
+  color: #005533;
+}
+
+.design-a__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 28px;
+  padding: 16px;
+  border: 1px solid #003322;
+  background: #010101;
+}
+
+.design-a__stat-line {
+  letter-spacing: 0.04em;
+}
+
+.design-a__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+
+.design-a__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 1px solid #00ff88;
+  color: #00ff88;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.design-a__btn:hover {
+  background: rgba(0, 255, 136, 0.08);
+}
+
+.design-a__section {
+  margin-bottom: 40px;
+  border-top: 1px solid #003322;
+  padding-top: 24px;
+}
+
+.design-a__features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.design-a__features li {
+  padding: 10px 0 10px 0;
+  border-bottom: 1px solid #003322;
+  font-size: 13px;
+  color: #00ff88;
+  letter-spacing: 0.02em;
+}
+
+.design-a__features li:last-child {
+  border-bottom: 1px solid #003322;
+}
+
+.design-a__feature-tag {
+  color: #005533;
+  display: block;
+  font-size: 11px;
+  margin-bottom: 4px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.design-a__cta-block {
+  padding: 20px;
+  border: 1px solid #003322;
+  text-align: center;
+}
+
+.design-a__cta-block p {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #00ff88;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.design-a__footer {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid #003322;
+  font-size: 11px;
+  color: #005533;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}

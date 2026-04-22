@@ -1,0 +1,242 @@
+/* Design B — Precision instrument (standalone preview) */
+
+#root .design-b {
+  min-height: 100svh;
+  background-color: #0a0a08;
+  color: #e8e4d0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+  box-sizing: border-box;
+  text-align: left;
+  width: 100%;
+  margin: 0;
+  /* Subtle film grain / noise */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch' result='t'/%3E%3CfeColorMatrix in='t' type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+.design-b *,
+.design-b *::before,
+.design-b *::after {
+  box-sizing: border-box;
+  border-radius: 0;
+}
+
+.design-b__inner {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 56px 32px 80px;
+}
+
+.design-b__eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #f0b429;
+  margin: 0 0 20px;
+}
+
+#root .design-b h1,
+#root .design-b h2 {
+  font-family: Georgia, "Times New Roman", Times, serif;
+  color: #e8e4d0 !important;
+  margin: 0;
+  font-weight: 400;
+}
+
+#root .design-b h1 {
+  font-size: clamp(2.2rem, 5vw, 3.25rem) !important;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  max-width: 14ch;
+  font-weight: 400 !important;
+  margin: 0 !important;
+  text-align: left;
+}
+
+#root .design-b h2 {
+  font-size: 1.35rem;
+  margin-bottom: 20px;
+  letter-spacing: 0.01em;
+  text-align: left;
+}
+
+.design-b__subline {
+  display: block;
+  margin-top: 16px;
+  font-size: 1.25rem;
+  color: #f0b429;
+  font-family: Georgia, "Times New Roman", Times, serif;
+  letter-spacing: 0.02em;
+}
+
+.design-b__lede {
+  max-width: 40em;
+  margin: 36px 0 0;
+  color: #c4c0a8;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+}
+
+.design-b__grid-break {
+  margin: 48px 0 0 -12px;
+  width: min(100vw - 20px, 100% + 24px);
+  max-width: 900px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    #2a2a22 0%,
+    #2a2a22 8%,
+    transparent 8%,
+    transparent 100%
+  );
+  position: relative;
+  border: none;
+}
+
+@media (min-width: 900px) {
+  .design-b__grid-break {
+    margin-left: -48px;
+  }
+}
+
+.design-b__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+  font-size: 0.8rem;
+  color: #a39e88;
+  margin: 24px 0 0;
+  letter-spacing: 0.06em;
+}
+
+.design-b__stat-sep {
+  color: #2a2a22;
+  user-select: none;
+}
+
+.design-b__stat-em {
+  color: #e8e4d0;
+  font-weight: 500;
+}
+
+.design-b__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 48px 0 0;
+  align-items: center;
+}
+
+.design-b__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  border: 1px solid #f0b429;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  border-radius: 0;
+}
+
+.design-b__btn--primary {
+  background: #f0b429;
+  color: #0a0a08;
+  border-color: #f0b429;
+}
+
+.design-b__btn--primary:hover {
+  filter: brightness(1.05);
+}
+
+.design-b__btn--ghost {
+  background: transparent;
+  color: #f0b429;
+  border-color: #f0b429;
+}
+
+.design-b__btn--ghost:hover {
+  background: rgba(240, 180, 41, 0.08);
+}
+
+.design-b__section {
+  margin-top: 64px;
+  padding-top: 32px;
+  border-top: 1px solid #2a2a22;
+  max-width: 42em;
+}
+
+.design-b__features {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+}
+
+.design-b__features li {
+  position: relative;
+  padding: 18px 0 18px 20px;
+  border-bottom: 1px solid #2a2a22;
+  color: #c4c0a8;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.design-b__features li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 24px;
+  width: 3px;
+  height: 1.2em;
+  background: #f0b429;
+  opacity: 0.5;
+}
+
+.design-b__asym {
+  margin-top: 48px;
+  margin-left: 0;
+  max-width: 32em;
+}
+
+@media (min-width: 700px) {
+  .design-b__asym {
+    margin-left: 8%;
+  }
+}
+
+.design-b__surface {
+  background: #111110;
+  border: 1px solid #2a2a22;
+  padding: 28px 24px 32px;
+  margin-top: 32px;
+}
+
+.design-b__surface p {
+  margin: 0;
+  color: #a39e88;
+  font-size: 0.9rem;
+  max-width: 32em;
+}
+
+.design-b__surface .design-b__actions {
+  margin-top: 20px;
+}
+
+.design-b__footer {
+  margin-top: 64px;
+  padding-top: 20px;
+  border-top: 1px solid #2a2a22;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #5c5848;
+}
