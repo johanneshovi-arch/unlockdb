@@ -3428,13 +3428,15 @@ function App() {
   const currentCsvInputRef = useRef(null);
   const overviewDetailsRef = useRef(null);
   const chatMessageIdRef = useRef(0);
+  const chatEndTabRef = useRef(null);
+  const chatEndStickyRef = useRef(null);
   const copilotSubmitGuardRef = useRef(false);
   const [feedFocusColumnKey, setFeedFocusColumnKey] = useState(null);
   const [selectedChange, setSelectedChange] = useState(null);
   const [changeFeedFilter, setChangeFeedFilter] = useState("all");
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [copilotInput, setCopilotInput] = useState("");
-  const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(false);
+  const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(true);
   const [contracts, setContracts] = useState([
     {
       id: "1",
@@ -3819,6 +3821,11 @@ function App() {
   useEffect(() => {
     chatContextRef.current = chatContext;
   }, [chatContext]);
+
+  useEffect(() => {
+    chatEndTabRef.current?.scrollIntoView({ behavior: "smooth" });
+    chatEndStickyRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   useEffect(() => {
     setDismissed(false);
@@ -4367,6 +4374,7 @@ Return ONLY the SQL, no explanation.`;
     console.log("SEND:", text);
     const trimmed = text.trim();
     if (!trimmed) return;
+    setCopilotHistoryExpanded(true);
     let handledCommandReply = null;
     try {
       handledCommandReply = tryHandleCopilotCommand(trimmed, {
@@ -4488,6 +4496,7 @@ Return ONLY the SQL, no explanation.`;
   }
 
   function handleCopilotSend(e) {
+    setCopilotHistoryExpanded(true);
     if (e && typeof e.preventDefault === "function") {
       e.preventDefault();
     }
@@ -11413,10 +11422,13 @@ Return ONLY the SQL, no explanation.`;
         {activeTab === "chat" && (
           <section
             style={{
-              maxWidth: "36rem",
+              maxWidth: "42rem",
               margin: "0 auto",
               textAlign: "left",
               paddingBottom: "160px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
             }}
           >
             <h2
@@ -11424,44 +11436,86 @@ Return ONLY the SQL, no explanation.`;
                 fontSize: "20px",
                 fontWeight: 600,
                 color: "var(--text-h)",
-                margin: "0 0 8px",
+                margin: "0 0 4px",
               }}
             >
-              AI Assistant history
+              AI Assistant
             </h2>
-            <p style={{ ...governanceMutedStyle, marginBottom: "16px" }}>
-              Use the sticky AI Assistant bar on every screen. Open{" "}
-              <strong>History</strong> there to read the full message list and
-              replies. Commands can also update Overview, Sources, and filters.
+            <p style={{ ...governanceMutedStyle, margin: 0 }}>
+              Same conversation as the sticky bar. Deterministic commands can
+              also update Overview, Sources, and filters.
             </p>
 
             <div
               style={{
-                minHeight: "120px",
-                marginBottom: "12px",
-                padding: "14px",
-                borderRadius: "10px",
+                flex: 1,
+                minHeight: "min(45vh, 400px)",
+                maxHeight: "min(55vh, 520px)",
+                overflowY: "auto",
+                padding: "12px",
+                borderRadius: "12px",
                 background: "var(--code-bg)",
                 border: "1px solid var(--border)",
-                fontSize: "14px",
-                lineHeight: 1.55,
-                color: "var(--text)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
               }}
             >
               {messages.length === 0 ? (
-                <p style={{ margin: 0 }}>
-                  No messages yet. Type in the bottom bar and press{" "}
-                  <strong>Run</strong> (or Enter), then expand{" "}
-                  <strong>History</strong> to see the conversation.
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "14px",
+                    color: "var(--text-muted)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  No messages yet. Send a message below or use a suggestion.
                 </p>
               ) : (
-                <p style={{ margin: 0 }}>
-                  You have {messages.length} message
-                  {messages.length === 1 ? "" : "s"} in this session. Expand{" "}
-                  <strong>History</strong> in the AI Assistant bar at the bottom
-                  of the window to read them.
-                </p>
+                messages.map((m) => (
+                  <div
+                    key={m.id}
+                    style={{
+                      padding: "12px 14px",
+                      borderRadius: "10px",
+                      background: "var(--social-bg)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        color: "var(--text-h)",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      {m.role === "user" ? "You:" : "AI Assistant:"}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "15px",
+                        lineHeight: 1.55,
+                        color: "var(--text)",
+                        whiteSpace: m.role === "assistant" ? "pre-line" : "normal",
+                      }}
+                    >
+                      {m.analyzing ? (
+                        <span>
+                          <span style={loadingDotStyle} aria-hidden>
+                            ●
+                          </span>{" "}
+                          Analyzing...
+                        </span>
+                      ) : (
+                        m.text
+                      )}
+                    </div>
+                  </div>
+                ))
               )}
+              <div ref={chatEndTabRef} />
             </div>
 
             <div
@@ -11469,7 +11523,6 @@ Return ONLY the SQL, no explanation.`;
                 display: "flex",
                 flexWrap: "wrap",
                 gap: "8px",
-                marginBottom: "12px",
               }}
             >
               {CHAT_SUGGESTIONS.map((s) => (
@@ -11485,17 +11538,70 @@ Return ONLY the SQL, no explanation.`;
               ))}
             </div>
 
-            <p
+            <form
+              onSubmit={handleCopilotSend}
+              noValidate
               style={{
-                margin: 0,
-                fontSize: "13px",
-                color: "var(--text)",
-                lineHeight: 1.45,
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
               }}
             >
-              Type commands in the AI Assistant bar — it stays visible on every
-              tab.
-            </p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  alignItems: "stretch",
+                  flexWrap: "wrap",
+                }}
+              >
+                <input
+                  type="text"
+                  name="unlockdb-ai-assistant-tab"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={copilotInput}
+                  onChange={(e) => setCopilotInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" || e.shiftKey) return;
+                    if (e.nativeEvent?.isComposing) return;
+                    e.preventDefault();
+                    const form = e.currentTarget.form;
+                    if (form && typeof form.requestSubmit === "function") {
+                      form.requestSubmit();
+                    } else {
+                      handleCopilotSend(null);
+                    }
+                  }}
+                  placeholder="Ask anything about your data or workspace…"
+                  aria-label="AI Assistant message"
+                  className="unlockdb-field"
+                  style={{
+                    flex: 1,
+                    minWidth: "200px",
+                    minHeight: "52px",
+                    padding: "14px 16px",
+                    borderRadius: "10px",
+                    fontSize: "16px",
+                    lineHeight: 1.4,
+                  }}
+                />
+                <button
+                  type="submit"
+                  className="app-primary-btn"
+                  style={{
+                    padding: "14px 22px",
+                    borderRadius: "10px",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    minHeight: "52px",
+                    flexShrink: 0,
+                  }}
+                >
+                  Send
+                </button>
+              </div>
+            </form>
           </section>
         )}
 
@@ -11847,7 +11953,7 @@ Return ONLY the SQL, no explanation.`;
                         marginRight: "6px",
                       }}
                     >
-                      {m.role === "user" ? "You" : "AI Assistant"}
+                      {m.role === "user" ? "You:" : "AI Assistant:"}
                     </span>
                     {m.analyzing ? (
                       <span>
@@ -11862,6 +11968,7 @@ Return ONLY the SQL, no explanation.`;
                   </div>
                 ))
               )}
+              <div ref={chatEndStickyRef} />
             </div>
           ) : null}
 

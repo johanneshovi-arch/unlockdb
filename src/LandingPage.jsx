@@ -18,7 +18,10 @@ export default function LandingPage() {
         <nav className="landing-nav" aria-label="Landing">
           <div className="landing-nav-brand">
             <UnlockdbLogo />
-            <span>Unlockdb</span>
+            <div className="landing-nav-brand-text">
+              <span className="landing-nav-brand-name">Unlockdb</span>
+              <span className="landing-nav-tagline">data change intelligence</span>
+            </div>
           </div>
           <div className="landing-nav-actions">
             <Link to="/" className="landing-btn landing-btn-primary">
@@ -42,7 +45,10 @@ export default function LandingPage() {
             Before it breaks anything.
           </h1>
           <p className="landing-hero-sub">
-            AI-native change intelligence for Snowflake and Databricks teams.
+            The AI-native intelligence layer for your data warehouse.
+            <br />
+            Watches your data. Understands what changed. Tells you why it
+            matters — automatically.
           </p>
           <div className="landing-hero-actions">
             <Link to="/" className="landing-btn landing-btn-primary">
@@ -53,15 +59,14 @@ export default function LandingPage() {
             </a>
           </div>
           <p className="landing-trust-line">
-            🔒 Your raw data never leaves your warehouse — Claude sees statistics
-            only
+            🔒 Privacy-first by design — your raw data never leaves your warehouse
           </p>
         </section>
 
         <section className="landing-section" aria-labelledby="problem-title">
           <div className="landing-inner">
             <h2 id="problem-title" className="landing-section-title">
-              The silent data problem
+              The problem with passive data tools
             </h2>
             <div className="landing-cards-3">
               <div className="landing-card">
@@ -84,15 +89,16 @@ export default function LandingPage() {
                 <div className="landing-card-icon" aria-hidden>
                   💥
                 </div>
-                <h3>Data is already wrong</h3>
+                <h3>Silent data failures</h3>
                 <p>
-                  Email nulls jumped 20%. Revenue numbers are off. Nobody
-                  noticed.
+                  Email nulls jumped 20%. Revenue is off. Pipelines look fine.
+                  Traditional tools never saw it coming.
                 </p>
               </div>
             </div>
             <p className="landing-accent-line">
-              Unlockdb catches this before your CEO sees it.
+              Unlockdb&apos;s AI catches this automatically — before your CEO sees
+              it.
             </p>
           </div>
         </section>
@@ -104,7 +110,7 @@ export default function LandingPage() {
         >
           <div className="landing-inner">
             <h2 id="how-title" className="landing-section-title">
-              How it works
+              How the intelligence layer works
             </h2>
             <div className="landing-steps">
               <div className="landing-step">
@@ -117,18 +123,20 @@ export default function LandingPage() {
               </div>
               <div className="landing-step">
                 <div className="landing-step-num">02</div>
-                <h3>AI detects changes</h3>
+                <h3>AI monitors continuously</h3>
                 <p>
-                  Unlockdb compares snapshots and automatically flags what
-                  changed, what&apos;s risky, and what might break.
+                  Unlockdb&apos;s intelligence layer compares snapshots
+                  automatically. No manual setup. No rules to write. AI flags
+                  what changed and what&apos;s risky.
                 </p>
               </div>
               <div className="landing-step">
                 <div className="landing-step-num">03</div>
-                <h3>Understand instantly</h3>
+                <h3>Understand and act instantly</h3>
                 <p>
-                  Plain-language explanations, affected downstream systems, and
-                  SQL queries to investigate.
+                  Plain-language AI explanations, affected downstream systems,
+                  SQL queries to investigate — all generated automatically
+                  before you even ask.
                 </p>
               </div>
             </div>
@@ -370,21 +378,28 @@ export default function LandingPage() {
         <section className="landing-section" aria-labelledby="compare-title">
           <div className="landing-inner">
             <h2 id="compare-title" className="landing-section-title">
-              Built for the AI era
+              Intelligence layer vs. legacy tools
             </h2>
             <div className="landing-table-wrap">
               <table className="landing-table">
                 <thead>
                   <tr>
-                    <th scope="col">Feature</th>
+                    <th scope="col">Capability</th>
                     <th scope="col">Monte Carlo</th>
                     <th scope="col">Soda</th>
                     <th scope="col" className="col-unlockdb">
-                      Unlockdb
+                      <span className="landing-table-col-eyebrow">AI-native</span>
+                      <span className="landing-table-col-name">Unlockdb</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
+                  <tr>
+                    <td>Built-in AI intelligence</td>
+                    <td>❌</td>
+                    <td>❌</td>
+                    <td className="col-unlockdb">✅</td>
+                  </tr>
                   <tr>
                     <td>Setup time</td>
                     <td>Weeks</td>
@@ -430,28 +445,29 @@ export default function LandingPage() {
         <section className="landing-section" aria-labelledby="social-title">
           <div className="landing-inner">
             <h2 id="social-title" className="landing-section-title">
-              Trusted by data teams
+              What data teams say
             </h2>
             <div className="landing-quotes">
               <div className="landing-quote-card">
                 <blockquote>
-                  &ldquo;Finally a tool that explains WHY the data changed, not
-                  just that it did.&rdquo;
+                  &ldquo;Finally a tool that doesn&apos;t just alert — it
+                  actually explains what happened and what to do next.&rdquo;
                 </blockquote>
-                <cite>— Data Engineer, SaaS company</cite>
+                <cite>— Senior Data Engineer, SaaS company</cite>
               </div>
               <div className="landing-quote-card">
                 <blockquote>
-                  &ldquo;We caught a breaking schema change before it hit our
-                  revenue dashboard.&rdquo;
+                  &ldquo;It caught a schema change before it hit our revenue
+                  dashboard. No rules, no setup — just worked.&rdquo;
                 </blockquote>
-                <cite>— Analytics Engineer</cite>
+                <cite>— Analytics Engineer, Scale-up</cite>
               </div>
               <div className="landing-quote-card">
                 <blockquote>
-                  &ldquo;Setup took 5 minutes. Monte Carlo took 3 months.&rdquo;
+                  &ldquo;We evaluated Monte Carlo. Unlockdb gave us 80% of the
+                  value in 5 minutes instead of 3 months.&rdquo;
                 </blockquote>
-                <cite>— Head of Data</cite>
+                <cite>— Head of Data, B2B company</cite>
               </div>
             </div>
             <p className="landing-quote-note">Early access quotes</p>
@@ -461,8 +477,12 @@ export default function LandingPage() {
         <section className="landing-section" aria-labelledby="security-title">
           <div className="landing-inner">
             <h2 id="security-title" className="landing-section-title">
-              Privacy-first by design
+              Privacy-first intelligence
             </h2>
+            <p className="landing-security-sub">
+              The only data intelligence layer that never touches your raw
+              data.
+            </p>
             <div className="landing-security-grid">
               <div className="landing-security-item">
                 <h3>🔒 Raw data stays in your warehouse</h3>
@@ -508,7 +528,8 @@ export default function LandingPage() {
             </a>
           </div>
           <p className="landing-cta-note">
-            No credit card. No setup. Connect in minutes.
+            No credit card. No rules to write. No agents to configure. Just
+            connect and let AI do the work.
           </p>
         </section>
       </main>
