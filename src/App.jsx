@@ -1397,28 +1397,102 @@ function buildCopilotContextPack(ctx, meta) {
   return out;
 }
 
-/** Extract JSON with optional { response, action } from Claude (may be fenced). */
+/** First balanced {...} in text (avoids lastIndexOf('}') breaking on } inside strings). */
+function extractFirstBalancedJsonObject(text) {
+  if (text == null || typeof text !== "string") return null;
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (c === "\\") {
+        escape = true;
+        continue;
+      }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      continue;
+    }
+    if (c === "{") depth += 1;
+    if (c === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/** Normalize model quirks: Response/Action keys, stringified action, single-quoted JSON attempt. */
+function normalizeCopilotPayload(obj) {
+  if (obj == null || typeof obj !== "object" || Array.isArray(obj)) return null;
+  const o = { ...obj };
+  if (o.response === undefined && o.Response !== undefined) {
+    o.response = o.Response;
+  }
+  if (o.action === undefined && o.Action !== undefined) {
+    o.action = o.Action;
+  }
+  if (typeof o.action === "string" && o.action.trim()) {
+    const s = o.action.trim();
+    if (s.startsWith("{")) {
+      try {
+        o.action = JSON.parse(s);
+      } catch {
+        o.action = { type: s };
+      }
+    } else {
+      o.action = { type: s };
+    }
+  }
+  return o;
+}
+
+/** Extract JSON with optional { response, action } from Claude (may be fenced, prose, or non-standard JSON). */
 function parseCopilotActionJson(text) {
   if (text == null || typeof text !== "string") return null;
   let t = text.trim();
-  const fenced =
-    /^```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n*```\s*$/i.exec(t) || null;
+  const fenced = /^```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n*```/im.exec(t);
   if (fenced) t = fenced[1].trim();
   const tryOne = (s) => {
+    if (s == null) return null;
     try {
       const o = JSON.parse(s);
-      return o && typeof o === "object" ? o : null;
+      if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+      return o;
     } catch {
       return null;
     }
   };
-  const direct = tryOne(t);
-  if (direct && ("response" in direct || "action" in direct)) return direct;
-  const i = t.indexOf("{");
-  const j = t.lastIndexOf("}");
-  if (i >= 0 && j > i) {
-    const inner = tryOne(t.slice(i, j + 1));
-    if (inner && ("response" in inner || "action" in inner)) return inner;
+  const stripTrailingCommas = (s) => s?.replace(/,\s*([}\]])/g, "$1");
+  const candidates = [
+    t,
+    extractFirstBalancedJsonObject(t),
+    extractFirstBalancedJsonObject(t.replace(/^[\s\S]*?(\{)/, "$1")),
+  ].filter(Boolean);
+  for (const c of candidates) {
+    const parsed =
+      tryOne(c) ||
+      tryOne(stripTrailingCommas(c));
+    if (!parsed) continue;
+    if (
+      "response" in parsed ||
+      "action" in parsed ||
+      "Response" in parsed ||
+      "Action" in parsed ||
+      (typeof parsed.type === "string" && parsed.type.length > 0)
+    ) {
+      return normalizeCopilotPayload(parsed);
+    }
   }
   return null;
 }
@@ -4439,8 +4513,13 @@ Return ONLY the SQL, no explanation.`;
   }
 
   function executeAppAction(action) {
+    console.log("[executeAppAction] incoming", action);
     if (action == null || typeof action !== "object") return;
     const type = action.type;
+    if (type == null || type === "") {
+      console.warn("[executeAppAction] missing action.type, skipping");
+      return;
+    }
     switch (type) {
       case "NAVIGATE": {
         const tab = action.tab;
@@ -4605,6 +4684,7 @@ Return ONLY the SQL, no explanation.`;
           deterministicActionReply: handledCommandReply,
           workspaceSummary,
         });
+        let replyFromClaudeApi = false;
         try {
           finalText = await claudeChatReply(trimmed, packed, {
             systemPrompt: UNLOCKDB_COPILOT_ACTION_SYSTEM,
@@ -4613,6 +4693,7 @@ Return ONLY the SQL, no explanation.`;
           if (!finalText) {
             throw new Error("empty claude reply");
           }
+          replyFromClaudeApi = true;
         } catch (e) {
           console.error(e);
           try {
@@ -4631,7 +4712,40 @@ Return ONLY the SQL, no explanation.`;
           finalText =
             "No reply received. Check your connection and API setup, then try again.";
         } else {
-          const actionPayload = parseCopilotActionJson(finalText);
+          const claudeResponse = finalText;
+          if (replyFromClaudeApi) {
+            console.log("Claude raw response:", claudeResponse);
+          }
+          let actionPayload = parseCopilotActionJson(claudeResponse);
+          if (
+            actionPayload &&
+            typeof actionPayload === "object" &&
+            !("action" in actionPayload) &&
+            "type" in actionPayload &&
+            typeof actionPayload.type === "string"
+          ) {
+            const ap = actionPayload;
+            actionPayload = {
+              response:
+                ap.response != null
+                  ? String(ap.response)
+                  : ap.message != null
+                    ? String(ap.message)
+                    : ap.text != null
+                      ? String(ap.text)
+                      : "Done.",
+              action: {
+                type: ap.type,
+                ...(ap.tab !== undefined && { tab: ap.tab }),
+                ...(ap.tableName !== undefined && { tableName: ap.tableName }),
+                ...(ap.setting !== undefined && { setting: ap.setting }),
+                ...(ap.value !== undefined && { value: ap.value }),
+              },
+            };
+          }
+          if (replyFromClaudeApi) {
+            console.log("Parsed action:", actionPayload?.action);
+          }
           if (
             actionPayload &&
             typeof actionPayload === "object" &&
@@ -4641,12 +4755,16 @@ Return ONLY the SQL, no explanation.`;
               actionPayload.response != null &&
               String(actionPayload.response).trim() !== ""
                 ? String(actionPayload.response).trim()
-                : actionPayload.action
+                : actionPayload.action != null
                   ? "Done."
                   : finalText;
-            if (actionPayload.action) {
+            const toRun =
+              actionPayload.action && typeof actionPayload.action === "object"
+                ? actionPayload.action
+                : null;
+            if (toRun) {
               try {
-                executeAppAction(actionPayload.action);
+                executeAppAction(toRun);
                 showToast("✓ " + (replyText || "Done"));
               } catch (err) {
                 console.error("executeAppAction failed:", err);
