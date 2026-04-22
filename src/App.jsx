@@ -1499,28 +1499,15 @@ function parseCopilotActionJson(text) {
 
 const UNLOCKDB_COPILOT_ACTION_SYSTEM = `You are the AI Assistant for Unlockdb.
 You can answer questions AND control the app directly.
+The system message also includes a block UNLOCKDB APP STATE with live connection status, loaded data, current tab, and the exact list of actions the UI can run—trust that over anything assumed from memory.
 
 When the user wants to perform an action, respond with JSON in this exact format (use double quotes):
 {
   "response": "your natural language reply",
   "action": { "type": "ACTION_TYPE" }
 }
-
 When no app action is needed, use: "action": null
-
-Available actions (type is required; add fields as shown):
-- NAVIGATE: { "type": "NAVIGATE", "tab": "overview" } — tab is one of: overview, about, sources, settings, security, governance, audit, contracts, account
-- CONNECT_SNOWFLAKE: { "type": "CONNECT_SNOWFLAKE" }
-- CONNECT_DATABRICKS: { "type": "CONNECT_DATABRICKS" }
-- LOAD_TABLE: { "type": "LOAD_TABLE", "tableName": "customers" } — use a real table from the demo browser (e.g. customers, orders, events for Databricks)
-- FILTER_HIGH_RISK or SHOW_HIGH_RISK_ONLY: { "type": "FILTER_HIGH_RISK" } or { "type": "SHOW_HIGH_RISK_ONLY" }
-- FILTER_ALL: { "type": "FILTER_ALL" }
-- UPDATE_SETTING: { "type": "UPDATE_SETTING", "setting": "nullThreshold" or "rowCountThreshold", "value": 5 } — value is a number
-- SUMMARIZE: { "type": "SUMMARIZE" }
-- DISCONNECT: { "type": "DISCONNECT" }
-
 If the user only asks a question, respond with { "response": "your answer", "action": null }.
-
 Keep "response" short and friendly. Always return valid JSON only, no surrounding prose.`;
 
 async function claudeChatReply(userMessage, packedContextString, claudeOptions = {}) {
@@ -4602,6 +4589,13 @@ Return ONLY the SQL, no explanation.`;
       case "SUMMARIZE":
         navigateToTab("overview");
         break;
+      case "UPLOAD_CSV":
+        if (selectedSource !== "csv") {
+          selectDataSource("csv");
+        }
+        setActiveSourceName("csv");
+        navigateToTab("sources");
+        break;
       case "DISCONNECT":
         setPreviousData([]);
         setCurrentData([]);
@@ -4693,10 +4687,12 @@ Return ONLY the SQL, no explanation.`;
           deterministicActionReply: handledCommandReply,
           workspaceSummary,
         });
+        const context = buildAppContext();
+        const copilotSystemPrompt = `${UNLOCKDB_COPILOT_ACTION_SYSTEM}\n\n${context}`;
         let replyFromClaudeApi = false;
         try {
           finalText = await claudeChatReply(trimmed, packed, {
-            systemPrompt: UNLOCKDB_COPILOT_ACTION_SYSTEM,
+            systemPrompt: copilotSystemPrompt,
             maxTokens: 1200,
           });
           if (!finalText) {
@@ -4897,6 +4893,123 @@ Return ONLY the SQL, no explanation.`;
       label: demoLoggedIn ? "Account" : "Login / Account",
     },
   ];
+
+  function buildAppContext() {
+    const dataLoaded =
+      currentData.length > 0
+        ? `Yes — ${currentData.length} current rows, ${previousData.length} baseline (previous) rows`
+        : "No data loaded yet";
+    const tablesBlock =
+      tableBrowserList.length > 0
+        ? tableBrowserList
+            .map(
+              (t) =>
+                `${t.name} (${t.riskLevel ?? "?"} risk, ${
+                  t.changeCount ?? 0
+                } changes)`
+            )
+            .join("\n")
+        : "No tables loaded";
+    return `
+UNLOCKDB APP STATE:
+
+Navigation tabs available:
+${navTabs.map((t) => t.label).join(", ")}
+Current route tab: ${pathTab != null ? pathTab : "—"}
+Selected data source mode: ${String(selectedSource ?? "none")} (e.g. csv, snowflake, databricks in the UI)
+Overview change feed filter: ${
+      changeFeedFilter === "high-risk" ? "high risk only" : "all"
+    }
+Table browser (warehouse) context: ${
+      tableBrowserSource
+        ? `${tableBrowserSource} — ${
+            tableBrowserList.length
+          } table(s) in the browser list below`
+        : "not open / no list"
+    }
+
+Data source status:
+${
+  snowflakeDemoConnected
+    ? "Snowflake: CONNECTED (demo)"
+    : "Snowflake: not connected"
+}
+${
+  databricksDemoConnected
+    ? "Databricks: CONNECTED (demo)"
+    : "Databricks: not connected"
+}
+
+Data loaded:
+${dataLoaded}
+
+Tables available (if connected; use exact names for LOAD_TABLE):
+${tablesBlock}
+
+Current settings:
+- Null threshold: ${Number.isFinite(nullRateIncreaseThreshold) ? nullRateIncreaseThreshold : 5}%
+- Row count threshold: ${Number.isFinite(rowCountChangeThreshold) ? rowCountChangeThreshold : 20}%
+
+Features available in this app:
+1. CSV UPLOAD: Sources tab → CSV (demo) button
+   → User uploads two CSV files (baseline + current)
+   → App compares them automatically
+   → Works with any CSV data
+
+2. SNOWFLAKE DEMO: Sources → Snowflake → Connect
+   → Loads realistic demo data
+   → 20 demo tables available
+
+3. DATABRICKS DEMO: Sources → Databricks → Connect
+   → Loads events demo data
+
+4. TABLE BROWSER: After connecting
+   → Browse and click any of 20 tables
+   → List view or Heatmap view
+
+5. AI ANALYSIS: Auto-runs when data loads
+   → Shows what changed and why
+   → Explains business impact
+
+6. SQL GENERATOR: Click any change card
+   → "Get SQL" button generates query
+   → Copy and run in Snowflake
+
+7. DATA CONTRACTS: Contracts tab
+   → Define rules: email not null, etc.
+   → Auto-checks on data load
+
+8. SETTINGS: Settings tab
+   → Null threshold, row count threshold
+   → Table sensitivity per table
+
+9. SECURITY: Security tab
+   → Privacy policy and data handling
+
+10. GOVERNANCE: Governance tab
+    → Users, roles, permissions demo
+
+11. AUDIT: Audit tab
+    → Change log and audit trail
+
+AVAILABLE AI ACTIONS (execute only with JSON; types must match exactly):
+- NAVIGATE: { "type": "NAVIGATE", "tab": "overview"|"about"|"sources"|"settings"|"security"|"governance"|"audit"|"contracts"|"account" }
+- CONNECT_SNOWFLAKE: { "type": "CONNECT_SNOWFLAKE" }
+- CONNECT_DATABRICKS: { "type": "CONNECT_DATABRICKS" }
+- LOAD_TABLE: { "type": "LOAD_TABLE", "tableName": "<name from table browser or demo list>" }
+- FILTER_HIGH_RISK: { "type": "FILTER_HIGH_RISK" }  (or SHOW_HIGH_RISK_ONLY, same effect)
+- FILTER_ALL: { "type": "FILTER_ALL" }
+- UPDATE_SETTING: { "type": "UPDATE_SETTING", "setting": "nullThreshold"|"rowCountThreshold", "value": <number> }
+- SUMMARIZE: { "type": "SUMMARIZE" }
+- DISCONNECT: { "type": "DISCONNECT" }
+- UPLOAD_CSV: { "type": "UPLOAD_CSV" } — navigates to Sources and selects the CSV uploader
+
+When user asks about CSV:
+→ Explain they can upload two CSV files
+→ Execute UPLOAD_CSV (or NAVIGATE to "sources" if UPLOAD_CSV is unavailable on client)
+→ Tell them to use the "CSV (demo)" flow in Sources
+`.trim();
+  }
 
   if (pathTab === null) {
     return <Navigate to="/" replace />;
