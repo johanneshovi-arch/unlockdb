@@ -3564,6 +3564,7 @@ function App() {
   const [feedFocusColumnKey, setFeedFocusColumnKey] = useState(null);
   const [selectedChange, setSelectedChange] = useState(null);
   const [changeFeedFilter, setChangeFeedFilter] = useState("all");
+  const [overviewKey, setOverviewKey] = useState(0);
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(true);
@@ -4557,6 +4558,8 @@ Return ONLY the SQL, no explanation.`;
           } else {
             loadDemoForWarehouseTable(sf.name, "snowflake");
           }
+          navigateToTab("overview");
+          window.scrollTo({ top: 0, behavior: "smooth" });
           break;
         }
         if (dbx) {
@@ -4569,6 +4572,8 @@ Return ONLY the SQL, no explanation.`;
           } else {
             loadDemoForWarehouseTable(dbx.name, "databricks");
           }
+          navigateToTab("overview");
+          window.scrollTo({ top: 0, behavior: "smooth" });
         }
         break;
       }
@@ -4614,6 +4619,10 @@ Return ONLY the SQL, no explanation.`;
       default:
         break;
     }
+    setOverviewKey((prev) => prev + 1);
+    window.setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 100);
   }
 
   function sendChatMessage(text) {
@@ -5091,7 +5100,12 @@ Return ONLY the SQL, no explanation.`;
         }}
       >
         {activeTab === "overview" && (
-          <>
+          <section
+            key={overviewKey}
+            style={{
+              width: "100%",
+            }}
+          >
             <section
               style={{
                 maxWidth: "44rem",
@@ -8557,7 +8571,7 @@ Return ONLY the SQL, no explanation.`;
                 <li>Native warehouse sync beyond the demo connector</li>
               </ul>
             </section>
-          </>
+          </section>
         )}
 
         {activeTab === "about" && (
