@@ -4711,66 +4711,54 @@ Return ONLY the SQL, no explanation.`;
         if (!finalText) {
           finalText =
             "No reply received. Check your connection and API setup, then try again.";
-        } else {
+        } else if (replyFromClaudeApi) {
           const claudeResponse = finalText;
-          if (replyFromClaudeApi) {
-            console.log("Claude raw response:", claudeResponse);
+          // Get Claude's response text
+          const rawResponse = claudeResponse;
+          console.log("Claude raw response:", rawResponse);
+
+          // Try to parse as JSON
+          let parsed = null;
+          try {
+            const cleaned = rawResponse
+              .replace(/```json/gi, "")
+              .replace(/```/g, "")
+              .trim();
+            const jsonSlice =
+              extractFirstBalancedJsonObject(cleaned) ?? cleaned;
+            parsed = JSON.parse(jsonSlice);
+            console.log("Parsed successfully:", parsed);
+          } catch (e) {
+            console.log("Not JSON, showing as text");
+            parsed = null;
           }
-          let actionPayload = parseCopilotActionJson(claudeResponse);
-          if (
-            actionPayload &&
-            typeof actionPayload === "object" &&
-            !("action" in actionPayload) &&
-            "type" in actionPayload &&
-            typeof actionPayload.type === "string"
-          ) {
-            const ap = actionPayload;
-            actionPayload = {
-              response:
-                ap.response != null
-                  ? String(ap.response)
-                  : ap.message != null
-                    ? String(ap.message)
-                    : ap.text != null
-                      ? String(ap.text)
-                      : "Done.",
-              action: {
-                type: ap.type,
-                ...(ap.tab !== undefined && { tab: ap.tab }),
-                ...(ap.tableName !== undefined && { tableName: ap.tableName }),
-                ...(ap.setting !== undefined && { setting: ap.setting }),
-                ...(ap.value !== undefined && { value: ap.value }),
-              },
-            };
-          }
-          if (replyFromClaudeApi) {
-            console.log("Parsed action:", actionPayload?.action);
-          }
-          if (
-            actionPayload &&
-            typeof actionPayload === "object" &&
-            ("response" in actionPayload || "action" in actionPayload)
-          ) {
-            const replyText =
-              actionPayload.response != null &&
-              String(actionPayload.response).trim() !== ""
-                ? String(actionPayload.response).trim()
-                : actionPayload.action != null
-                  ? "Done."
-                  : finalText;
-            const toRun =
-              actionPayload.action && typeof actionPayload.action === "object"
-                ? actionPayload.action
-                : null;
-            if (toRun) {
+
+          const responseText = parsed
+            ? parsed.response ?? parsed.Response
+            : undefined;
+
+          if (parsed && (responseText != null && String(responseText) !== "")) {
+            finalText = String(responseText);
+            if (parsed.action && parsed.action.type) {
+              console.log("Executing action:", parsed.action);
               try {
-                executeAppAction(toRun);
-                showToast("✓ " + (replyText || "Done"));
+                executeAppAction(parsed.action);
+                showToast("✓ " + (finalText || "Done"));
               } catch (err) {
                 console.error("executeAppAction failed:", err);
               }
             }
-            finalText = replyText;
+          } else if (parsed && parsed.action && parsed.action.type) {
+            finalText = "Done.";
+            console.log("Executing action:", parsed.action);
+            try {
+              executeAppAction(parsed.action);
+              showToast("✓ " + finalText);
+            } catch (err) {
+              console.error("executeAppAction failed:", err);
+            }
+          } else {
+            finalText = rawResponse;
           }
         }
       } catch (e) {
