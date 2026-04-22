@@ -1397,10 +1397,64 @@ function buildCopilotContextPack(ctx, meta) {
   return out;
 }
 
-async function claudeChatReply(userMessage, packedContextString) {
+/** Extract JSON with optional { response, action } from Claude (may be fenced). */
+function parseCopilotActionJson(text) {
+  if (text == null || typeof text !== "string") return null;
+  let t = text.trim();
+  const fenced =
+    /^```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n*```\s*$/i.exec(t) || null;
+  if (fenced) t = fenced[1].trim();
+  const tryOne = (s) => {
+    try {
+      const o = JSON.parse(s);
+      return o && typeof o === "object" ? o : null;
+    } catch {
+      return null;
+    }
+  };
+  const direct = tryOne(t);
+  if (direct && ("response" in direct || "action" in direct)) return direct;
+  const i = t.indexOf("{");
+  const j = t.lastIndexOf("}");
+  if (i >= 0 && j > i) {
+    const inner = tryOne(t.slice(i, j + 1));
+    if (inner && ("response" in inner || "action" in inner)) return inner;
+  }
+  return null;
+}
+
+const UNLOCKDB_COPILOT_ACTION_SYSTEM = `You are the AI Assistant for Unlockdb.
+You can answer questions AND control the app directly.
+
+When the user wants to perform an action, respond with JSON in this exact format (use double quotes):
+{
+  "response": "your natural language reply",
+  "action": { "type": "ACTION_TYPE" }
+}
+
+When no app action is needed, use: "action": null
+
+Available actions (type is required; add fields as shown):
+- NAVIGATE: { "type": "NAVIGATE", "tab": "overview" } — tab is one of: overview, about, sources, settings, security, governance, audit, contracts, account
+- CONNECT_SNOWFLAKE: { "type": "CONNECT_SNOWFLAKE" }
+- CONNECT_DATABRICKS: { "type": "CONNECT_DATABRICKS" }
+- LOAD_TABLE: { "type": "LOAD_TABLE", "tableName": "customers" } — use a real table from the demo browser (e.g. customers, orders, events for Databricks)
+- FILTER_HIGH_RISK or SHOW_HIGH_RISK_ONLY: { "type": "FILTER_HIGH_RISK" } or { "type": "SHOW_HIGH_RISK_ONLY" }
+- FILTER_ALL: { "type": "FILTER_ALL" }
+- UPDATE_SETTING: { "type": "UPDATE_SETTING", "setting": "nullThreshold" or "rowCountThreshold", "value": 5 } — value is a number
+- SUMMARIZE: { "type": "SUMMARIZE" }
+- DISCONNECT: { "type": "DISCONNECT" }
+
+If the user only asks a question, respond with { "response": "your answer", "action": null }.
+
+Keep "response" short and friendly. Always return valid JSON only, no surrounding prose.`;
+
+async function claudeChatReply(userMessage, packedContextString, claudeOptions = {}) {
   try {
     const raw = await askClaude(userMessage, packedContextString, {
       mode: "chat",
+      systemPrompt: claudeOptions.systemPrompt,
+      maxTokens: claudeOptions.maxTokens,
     });
     return typeof raw === "string" ? raw.trim() : String(raw ?? "").trim();
   } catch (e) {
@@ -3092,48 +3146,51 @@ const insightCardStyle = {
   color: "var(--text)",
 };
 
-const CHAT_SUGGESTIONS = [
-  { id: "what-changed", label: "What changed?", prompt: "What changed?" },
-  {
-    id: "biggest-risk",
-    label: "What's the biggest risk?",
-    prompt: "What's the biggest risk?",
-  },
-  {
-    id: "fix-first",
-    label: "What should I fix first?",
-    prompt: "What should I fix first?",
-  },
-  {
-    id: "email-break",
-    label: "Why did email break?",
-    prompt: "Why did email break?",
-  },
-  {
-    id: "high-risk",
-    label: "Show high risk only",
-    prompt: "high risk only",
-  },
-  {
-    id: "team-summary",
-    label: "Summarize for my team",
-    prompt: "Summarize for my team",
-  },
-  {
-    id: "tables-issues",
-    label: "Which tables have issues?",
-    prompt: "Which tables have issues?",
-  },
-  {
-    id: "tables-poor-names",
-    label: "Any poorly named tables?",
-    prompt: "Any poorly named tables?",
-  },
-  {
-    id: "riskiest-now",
-    label: "What's riskiest right now?",
-    prompt: "What's riskiest right now?",
-  },
+const CHAT_SUGGESTION_ROWS = [
+  [
+    {
+      id: "connect-sf",
+      label: "Connect Snowflake",
+      prompt: "Connect to the Snowflake demo and open Sources.",
+    },
+    {
+      id: "load-customers",
+      label: "Load customers table",
+      prompt: "Load the customers table from Snowflake.",
+    },
+    {
+      id: "high-risk",
+      label: "Show high risk only",
+      prompt: "Show only high risk changes on Overview.",
+    },
+    {
+      id: "what-changed",
+      label: "What changed?",
+      prompt: "What changed?",
+    },
+  ],
+  [
+    {
+      id: "team-summary",
+      label: "Summarize for my team",
+      prompt: "Summarize for my team",
+    },
+    {
+      id: "null-5",
+      label: "Set null threshold to 5%",
+      prompt: "Set the null rate increase threshold to 5%.",
+    },
+    {
+      id: "go-settings",
+      label: "Go to settings",
+      prompt: "Go to settings",
+    },
+    {
+      id: "disconnect",
+      label: "Disconnect",
+      prompt: "Disconnect and clear loaded data",
+    },
+  ],
 ];
 
 const chatSuggestionButtonStyle = {
@@ -3436,6 +3493,19 @@ function App() {
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotHistoryExpanded, setCopilotHistoryExpanded] = useState(true);
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
+  const showToast = useCallback((message) => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setToast(String(message ?? ""));
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3000);
+  }, []);
   const [contracts, setContracts] = useState([
     {
       id: "1",
@@ -4368,6 +4438,105 @@ Return ONLY the SQL, no explanation.`;
     });
   }
 
+  function executeAppAction(action) {
+    if (action == null || typeof action !== "object") return;
+    const type = action.type;
+    switch (type) {
+      case "NAVIGATE": {
+        const tab = action.tab;
+        if (tab && TAB_TO_PATH[tab]) navigateToTab(tab);
+        break;
+      }
+      case "CONNECT_SNOWFLAKE":
+        selectDataSource("snowflake");
+        runSnowflakeDemoDataset();
+        navigateToTab("sources");
+        break;
+      case "CONNECT_DATABRICKS":
+        selectDataSource("databricks");
+        runDatabricksDemoDataset();
+        navigateToTab("sources");
+        break;
+      case "LOAD_TABLE": {
+        const raw = action.tableName;
+        if (raw == null || String(raw).trim() === "") break;
+        const name = String(raw).trim();
+        const n = name.toLowerCase();
+        const sf = SNOWFLAKE_TABLE_BROWSER.find(
+          (t) => t.name.toLowerCase() === n
+        );
+        const dbx = DATABRICKS_TABLE_BROWSER.find(
+          (t) => t.name.toLowerCase() === n
+        );
+        if (sf) {
+          selectDataSource("snowflake");
+          if (!snowflakeDemoConnected) {
+            runSnowflakeDemoDataset();
+            window.setTimeout(() => {
+              loadDemoForWarehouseTable(sf.name, "snowflake");
+            }, 1200);
+          } else {
+            loadDemoForWarehouseTable(sf.name, "snowflake");
+          }
+          break;
+        }
+        if (dbx) {
+          selectDataSource("databricks");
+          if (!databricksDemoConnected) {
+            runDatabricksDemoDataset();
+            window.setTimeout(() => {
+              loadDemoForWarehouseTable(dbx.name, "databricks");
+            }, 1200);
+          } else {
+            loadDemoForWarehouseTable(dbx.name, "databricks");
+          }
+        }
+        break;
+      }
+      case "FILTER_HIGH_RISK":
+      case "SHOW_HIGH_RISK_ONLY":
+        setChangeFeedFilter("high-risk");
+        navigateToTab("overview");
+        break;
+      case "FILTER_ALL":
+        setChangeFeedFilter("all");
+        navigateToTab("overview");
+        break;
+      case "UPDATE_SETTING": {
+        const s = action.setting;
+        const v = Number(action.value);
+        if (Number.isFinite(v)) {
+          if (s === "nullThreshold") {
+            setNullRateIncreaseThreshold(v);
+          } else if (s === "rowCountThreshold") {
+            setRowCountChangeThreshold(v);
+          }
+        }
+        navigateToTab("settings");
+        break;
+      }
+      case "SUMMARIZE":
+        navigateToTab("overview");
+        break;
+      case "DISCONNECT":
+        setPreviousData([]);
+        setCurrentData([]);
+        setPreviousFileName("Not connected");
+        setCurrentFileName("Not connected");
+        setSnowflakeDemoConnected(false);
+        setDatabricksDemoConnected(false);
+        resetSnowflakeWarehouseBrowserState();
+        resetTableBrowserState();
+        setDatabricksWarehouseTableDisplay(null);
+        setActiveSourceName("csv");
+        setSelectedSource("csv");
+        navigateToTab("sources");
+        break;
+      default:
+        break;
+    }
+  }
+
   function sendChatMessage(text) {
     console.log("SEND:", text);
     const trimmed = text.trim();
@@ -4437,7 +4606,10 @@ Return ONLY the SQL, no explanation.`;
           workspaceSummary,
         });
         try {
-          finalText = await claudeChatReply(trimmed, packed);
+          finalText = await claudeChatReply(trimmed, packed, {
+            systemPrompt: UNLOCKDB_COPILOT_ACTION_SYSTEM,
+            maxTokens: 1200,
+          });
           if (!finalText) {
             throw new Error("empty claude reply");
           }
@@ -4458,6 +4630,30 @@ Return ONLY the SQL, no explanation.`;
         if (!finalText) {
           finalText =
             "No reply received. Check your connection and API setup, then try again.";
+        } else {
+          const actionPayload = parseCopilotActionJson(finalText);
+          if (
+            actionPayload &&
+            typeof actionPayload === "object" &&
+            ("response" in actionPayload || "action" in actionPayload)
+          ) {
+            const replyText =
+              actionPayload.response != null &&
+              String(actionPayload.response).trim() !== ""
+                ? String(actionPayload.response).trim()
+                : actionPayload.action
+                  ? "Done."
+                  : finalText;
+            if (actionPayload.action) {
+              try {
+                executeAppAction(actionPayload.action);
+                showToast("✓ " + (replyText || "Done"));
+              } catch (err) {
+                console.error("executeAppAction failed:", err);
+              }
+            }
+            finalText = replyText;
+          }
         }
       } catch (e) {
         console.error("sendChatMessage reply pipeline failed:", e);
@@ -4600,6 +4796,29 @@ Return ONLY the SQL, no explanation.`;
         flexDirection: "column",
       }}
     >
+      {toast ? (
+        <div
+          style={{
+            position: "fixed",
+            top: "80px",
+            right: "20px",
+            background: "var(--accent)",
+            color: "#fff",
+            padding: "10px 16px",
+            borderRadius: "8px",
+            fontSize: "14px",
+            zIndex: 9999,
+            animation: "fadeIn 0.2s ease",
+            maxWidth: "min(90vw, 24rem)",
+            lineHeight: 1.4,
+            textAlign: "left",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+          }}
+          role="status"
+        >
+          {toast}
+        </div>
+      ) : null}
       <header
         style={{
           position: "sticky",
@@ -11820,24 +12039,35 @@ Return ONLY the SQL, no explanation.`;
             <div
               style={{
                 display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: "6px",
+                flexDirection: "column",
+                gap: "8px",
                 marginBottom: "10px",
                 position: "relative",
                 zIndex: 1,
                 pointerEvents: "auto",
               }}
             >
-              {CHAT_SUGGESTIONS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="ai-assistant-bar-chip"
-                  onClick={() => sendChatMessage(s.prompt)}
+              {CHAT_SUGGESTION_ROWS.map((row) => (
+                <div
+                  key={row.map((s) => s.id).join("-")}
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
                 >
-                  {s.label}
-                </button>
+                  {row.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="ai-assistant-bar-chip"
+                      onClick={() => sendChatMessage(s.prompt)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
 
