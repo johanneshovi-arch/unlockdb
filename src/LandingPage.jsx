@@ -369,10 +369,11 @@ export default function LandingPage() {
         >
           <div className="landing-inner landing-pricing-inner">
             <h2 id="pricing-title" className="landing-section-title">
-              Simple, transparent pricing
+              Pricing that scales with your data
             </h2>
             <p className="landing-pricing-sub">
-              Start free. Upgrade when ready.
+              No sales call. No contract. A data engineer can set this up in 10
+              minutes.
             </p>
             <div className="landing-price-cards">
               <article className="landing-price-card">
@@ -382,41 +383,42 @@ export default function LandingPage() {
                   <p className="landing-price-period">Forever</p>
                 </div>
                 <ul className="landing-price-features">
-                  <li>CSV upload &amp; comparison</li>
+                  <li>Up to 3 tables monitored</li>
                   <li>AI change analysis</li>
-                  <li>Up to 3 tables</li>
+                  <li>Data Explorer (visual diff)</li>
                   <li>7-day history</li>
+                  <li>CSV upload &amp; comparison</li>
                 </ul>
                 <Link to="/" className="landing-btn landing-btn-secondary landing-price-btn">
-                  Try free →
+                  Start free →
                 </Link>
               </article>
 
               <article className="landing-price-card landing-price-card--pro">
                 <div className="landing-price-card-head">
                   <div className="landing-price-card-top">
-                    <span className="landing-price-label">Pro</span>
-                    <p className="landing-price-amount">$49/mo</p>
+                    <span className="landing-price-label">Starter</span>
+                    <p className="landing-price-amount">$29/mo</p>
                     <p className="landing-price-period">
-                      Early access: $29/mo
+                      Early access price — $49/mo after launch
                     </p>
                   </div>
-                  <span className="landing-price-badge">Most popular</span>
+                  <span className="landing-price-badge">MOST POPULAR</span>
                 </div>
                 <ul className="landing-price-features">
-                  <li>✅ Everything in Free</li>
-                  <li>✅ Snowflake &amp; Databricks connection</li>
-                  <li>✅ Unlimited tables</li>
-                  <li>✅ Natural language app control</li>
-                  <li>✅ Data Explorer (visual diff)</li>
-                  <li>✅ SQL query generator</li>
-                  <li>✅ Data Contracts</li>
-                  <li>✅ Schema change detection</li>
-                  <li>✅ 30-day history</li>
-                  <li>✅ Email support</li>
+                  <li>Up to 25 tables monitored</li>
+                  <li>Everything in Free</li>
+                  <li>Snowflake &amp; Databricks connection</li>
+                  <li>Natural language app control</li>
+                  <li>SQL query generator</li>
+                  <li>Data Contracts</li>
+                  <li>Schema change detection</li>
+                  <li>30-day history</li>
+                  <li>Email support</li>
+                  <li>$2/table/mo for tables over 25</li>
                 </ul>
                 <a
-                  href="mailto:hello@unlockdb.com?subject=Unlockdb%20Pro%20early%20access"
+                  href="mailto:hello@unlockdb.com?subject=Unlockdb%20Starter%20early%20access"
                   className="landing-btn landing-btn-primary landing-price-btn"
                 >
                   Get early access →
@@ -430,7 +432,8 @@ export default function LandingPage() {
                   <p className="landing-price-period">For larger teams</p>
                 </div>
                 <ul className="landing-price-features">
-                  <li>Everything in Pro</li>
+                  <li>Unlimited tables</li>
+                  <li>Everything in Starter</li>
                   <li>SSO &amp; audit logs</li>
                   <li>Data Processing Agreement</li>
                   <li>SLA guarantee</li>
@@ -446,8 +449,7 @@ export default function LandingPage() {
               </article>
             </div>
             <p className="landing-pricing-foot">
-              🔒 All plans: your raw data never leaves your warehouse. Cancel
-              anytime. No long-term contracts.
+              No seats. No contracts. Pay for what you monitor. Cancel anytime.
             </p>
           </div>
         </section>
