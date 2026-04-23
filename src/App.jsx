@@ -573,9 +573,45 @@ function getDownstreamForColumn(key) {
 const DATA_SOURCE_OPTIONS = [
   { id: "snowflake", label: "Snowflake (Warehouse)", recommended: true },
   { id: "databricks", label: "Databricks (Lakehouse)" },
-  { id: "fabric", label: "Microsoft Fabric (OneLake)" },
   { id: "csv", label: "CSV (demo)" },
 ];
+
+const COMING_SOON_DATA_SOURCES = [
+  { id: "fabric", label: "Microsoft Fabric" },
+  { id: "bigquery", label: "Google BigQuery" },
+  { id: "duckdb", label: "DuckDB" },
+];
+
+const sourcesComingSoonBadgeStyle = {
+  display: "inline-block",
+  background: "transparent",
+  border: "1px solid #333",
+  color: "#555",
+  fontSize: "10px",
+  fontWeight: 600,
+  padding: "2px 6px",
+  borderRadius: "4px",
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+  flexShrink: 0,
+};
+
+const sourcesComingSoonButtonStyle = {
+  padding: "10px 16px",
+  borderRadius: "8px",
+  border: "1px solid var(--border)",
+  background: "var(--social-bg)",
+  color: "var(--text-h)",
+  fontSize: "14px",
+  fontWeight: 500,
+  fontFamily: "inherit",
+  opacity: 0.5,
+  cursor: "not-allowed",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  flexWrap: "wrap",
+};
 
 const SNOWFLAKE_TABLE_BROWSER = [
   {
@@ -1281,6 +1317,8 @@ function buildCopilotSourceLabel(
   if (selectedSource === "databricks") return "Databricks (not connected)";
   if (selectedSource === "csv") return "CSV";
   if (selectedSource === "fabric") return "Microsoft Fabric";
+  if (selectedSource === "bigquery") return "Google BigQuery (coming soon)";
+  if (selectedSource === "duckdb") return "DuckDB (coming soon)";
   return "Not connected";
 }
 
@@ -9609,6 +9647,36 @@ When user asks about CSV:
               </div>
               <p
                 style={{
+                  fontSize: "12px",
+                  lineHeight: 1.4,
+                  color: "var(--text-muted)",
+                  margin: "14px 0 8px 0",
+                }}
+              >
+                More integrations coming:
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {COMING_SOON_DATA_SOURCES.map((opt) => {
+                  const { id, label } = opt;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      disabled
+                      tabIndex={-1}
+                      aria-label={`${label} — coming soon, not available yet`}
+                      style={sourcesComingSoonButtonStyle}
+                    >
+                      {label}
+                      <span style={sourcesComingSoonBadgeStyle}>
+                        COMING SOON
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p
+                style={{
                   fontSize: "14px",
                   lineHeight: 1.5,
                   color: "var(--text)",
@@ -9645,10 +9713,12 @@ When user asks about CSV:
                     <span style={{ color: "var(--text-h)", fontWeight: 600 }}>
                       Source:{" "}
                     </span>
-                    {
-                      DATA_SOURCE_OPTIONS.find((o) => o.id === selectedSource)
-                        ?.label
-                    }
+                    {(
+                      DATA_SOURCE_OPTIONS.find((o) => o.id === selectedSource) ??
+                      COMING_SOON_DATA_SOURCES.find(
+                        (o) => o.id === selectedSource
+                      )
+                    )?.label}
                   </span>
                   {selectedSource === "snowflake" && snowflakeDemoConnected ? (
                     <span
@@ -11236,103 +11306,29 @@ When user asks about CSV:
               </div>
             ) : null}
 
-            {selectedSource === "fabric" ? (
-              <form
-                onSubmit={handleDemoConnect}
+            {COMING_SOON_DATA_SOURCES.some((o) => o.id === selectedSource) ? (
+              <div
                 style={{
                   padding: "16px 18px",
                   borderRadius: "10px",
                   border: "1px solid var(--border)",
                   background: "var(--code-bg)",
-                  boxSizing: "border-box",
+                  color: "var(--text)",
+                  fontSize: "14px",
+                  lineHeight: 1.5,
                 }}
               >
-                <div style={authLabelStyle}>
-                  <label htmlFor="sources-conn-account">
-                    Account / Workspace
-                  </label>
-                  <input
-                    id="sources-conn-account"
-                    type="text"
-                    autoComplete="off"
-                    value={connectionForm.account}
-                    onChange={(e) =>
-                      setConnectionForm((f) => ({
-                        ...f,
-                        account: e.target.value,
-                      }))
-                    }
-                    className="unlockdb-field"
-                    style={authInputStyle}
-                    placeholder="Workspace URL or Fabric tenant"
-                  />
-                </div>
-                <div style={authLabelStyle}>
-                  <label htmlFor="sources-conn-user">User</label>
-                  <input
-                    id="sources-conn-user"
-                    type="text"
-                    autoComplete="username"
-                    value={connectionForm.user}
-                    onChange={(e) =>
-                      setConnectionForm((f) => ({ ...f, user: e.target.value }))
-                    }
-                    className="unlockdb-field"
-                    style={authInputStyle}
-                    placeholder="User or service principal"
-                  />
-                </div>
-                <div style={authLabelStyle}>
-                  <label htmlFor="sources-conn-warehouse">
-                    Compute (Warehouse / Cluster)
-                  </label>
-                  <input
-                    id="sources-conn-warehouse"
-                    type="text"
-                    autoComplete="off"
-                    value={connectionForm.warehouse}
-                    onChange={(e) =>
-                      setConnectionForm((f) => ({
-                        ...f,
-                        warehouse: e.target.value,
-                      }))
-                    }
-                    className="unlockdb-field"
-                    style={authInputStyle}
-                    placeholder="Warehouse or cluster"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="app-primary-btn"
-                  style={{
-                    marginTop: "14px",
-                    padding: "10px 22px",
-                    borderRadius: "8px",
-                    fontWeight: 600,
-                    fontSize: "14px",
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  Connect
-                </button>
-                {connectDemoAck ? (
-                  <p
-                    style={{
-                      margin: "12px 0 0",
-                      fontSize: "13px",
-                      lineHeight: 1.45,
-                      color: "var(--text)",
-                    }}
-                  >
-                    Demo only — no connection was made. Replace{" "}
-                    <code style={{ fontSize: "12px" }}>handleDemoConnect</code>{" "}
-                    with your Snowflake, Databricks, or Fabric connector / API
-                    call.
-                  </p>
-                ) : null}
-              </form>
+                <span style={sourcesComingSoonBadgeStyle}>COMING SOON</span>
+                <span style={{ marginLeft: "8px" }}>
+                  <strong style={{ color: "var(--text-h)" }}>
+                    {COMING_SOON_DATA_SOURCES.find(
+                      (o) => o.id === selectedSource
+                    )?.label ?? "This source"}
+                  </strong>{" "}
+                  is not available in the demo yet. Select Snowflake,
+                  Databricks, or CSV to connect.
+                </span>
+              </div>
             ) : null}
           </section>
         )}
