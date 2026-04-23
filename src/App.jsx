@@ -9628,19 +9628,6 @@ When user asks about CSV:
                       }}
                     >
                       {label}
-                      {recommended && !active ? (
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            color: "var(--accent)",
-                          }}
-                        >
-                          Primary
-                        </span>
-                      ) : null}
                     </button>
                   );
                 })}
