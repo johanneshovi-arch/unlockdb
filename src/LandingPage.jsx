@@ -45,10 +45,10 @@ export default function LandingPage() {
             Before it breaks anything.
           </h1>
           <p className="landing-hero-sub">
-            The AI-native intelligence layer for your data warehouse.
+            The AI-native intelligence layer for Snowflake and Databricks teams.
             <br />
-            Watches your data. Understands what changed. Tells you why it
-            matters — automatically.
+            Talk to your data. Understand what changed. Fix it — before it
+            breaks anything.
           </p>
           <div className="landing-hero-actions">
             <Link to="/" className="landing-btn landing-btn-primary">
@@ -134,9 +134,83 @@ export default function LandingPage() {
                 <div className="landing-step-num">03</div>
                 <h3>Understand and act instantly</h3>
                 <p>
-                  Plain-language AI explanations, affected downstream systems,
-                  SQL queries to investigate — all generated automatically
-                  before you even ask.
+                  Ask anything in plain language. The AI Assistant controls
+                  the entire app — connect sources, load tables, filter risks,
+                  generate SQL — all by just typing what you want.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="landing-section"
+          aria-labelledby="ai-control-title"
+        >
+          <div className="landing-inner">
+            <h2 id="ai-control-title" className="landing-section-title">
+              Everything controlled by AI
+            </h2>
+            <p className="landing-ai-control-sub">No clicks required — just ask.</p>
+            <div className="landing-feature-grid">
+              <div className="landing-feature-card">
+                <div className="landing-feature-card-icon" aria-hidden>
+                  💬
+                </div>
+                <h3>Natural language control</h3>
+                <p>
+                  Connect sources, load tables, filter risks — all by typing.
+                  No manual navigation needed.
+                </p>
+              </div>
+              <div className="landing-feature-card">
+                <div className="landing-feature-card-icon" aria-hidden>
+                  📊
+                </div>
+                <h3>Data Explorer</h3>
+                <p>
+                  See your actual table data visually. Current snapshot,
+                  previous snapshot, and diff view with changes highlighted.
+                </p>
+              </div>
+              <div className="landing-feature-card">
+                <div className="landing-feature-card-icon" aria-hidden>
+                  ⚡
+                </div>
+                <h3>Schema change detection</h3>
+                <p>
+                  Instantly flags added, removed, or modified columns before
+                  they break downstream queries.
+                </p>
+              </div>
+              <div className="landing-feature-card">
+                <div className="landing-feature-card-icon" aria-hidden>
+                  📋
+                </div>
+                <h3>Data Contracts</h3>
+                <p>
+                  Define rules like &ldquo;email must not be null&rdquo; and get
+                  alerted automatically when violated.
+                </p>
+              </div>
+              <div className="landing-feature-card">
+                <div className="landing-feature-card-icon" aria-hidden>
+                  🔍
+                </div>
+                <h3>SQL Generator</h3>
+                <p>
+                  AI generates investigation queries automatically. Copy and run
+                  directly in Snowflake or Databricks.
+                </p>
+              </div>
+              <div className="landing-feature-card">
+                <div className="landing-feature-card-icon" aria-hidden>
+                  🗺️
+                </div>
+                <h3>Medallion architecture ready</h3>
+                <p>
+                  Monitor Bronze, Silver and Gold layers independently. Catch
+                  issues before they reach your Gold reports.
                 </p>
               </div>
             </div>
@@ -330,13 +404,16 @@ export default function LandingPage() {
                   <span className="landing-price-badge">Most popular</span>
                 </div>
                 <ul className="landing-price-features">
-                  <li>Everything in Free</li>
-                  <li>Snowflake &amp; Databricks connection</li>
-                  <li>Unlimited tables</li>
-                  <li>30-day history</li>
-                  <li>AI Assistant (unlimited)</li>
-                  <li>SQL query generator</li>
-                  <li>Email support</li>
+                  <li>✅ Everything in Free</li>
+                  <li>✅ Snowflake &amp; Databricks connection</li>
+                  <li>✅ Unlimited tables</li>
+                  <li>✅ Natural language app control</li>
+                  <li>✅ Data Explorer (visual diff)</li>
+                  <li>✅ SQL query generator</li>
+                  <li>✅ Data Contracts</li>
+                  <li>✅ Schema change detection</li>
+                  <li>✅ 30-day history</li>
+                  <li>✅ Email support</li>
                 </ul>
                 <a
                   href="mailto:hello@unlockdb.com?subject=Unlockdb%20Pro%20early%20access"
@@ -436,6 +513,30 @@ export default function LandingPage() {
                     <td>❌</td>
                     <td className="col-unlockdb">✅</td>
                   </tr>
+                  <tr>
+                    <td>Natural language control</td>
+                    <td>❌</td>
+                    <td>❌</td>
+                    <td className="col-unlockdb">✅</td>
+                  </tr>
+                  <tr>
+                    <td>Data Explorer (visual diff)</td>
+                    <td>❌</td>
+                    <td>❌</td>
+                    <td className="col-unlockdb">✅</td>
+                  </tr>
+                  <tr>
+                    <td>SQL auto-generation</td>
+                    <td>❌</td>
+                    <td>❌</td>
+                    <td className="col-unlockdb">✅</td>
+                  </tr>
+                  <tr>
+                    <td>Medallion architecture support</td>
+                    <td>⚠️</td>
+                    <td>⚠️</td>
+                    <td className="col-unlockdb">✅</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -450,24 +551,25 @@ export default function LandingPage() {
             <div className="landing-quotes">
               <div className="landing-quote-card">
                 <blockquote>
-                  &ldquo;Finally a tool that doesn&apos;t just alert — it
-                  actually explains what happened and what to do next.&rdquo;
+                  &ldquo;I just typed &lsquo;show me high risk tables&rsquo; and
+                  it filtered everything automatically. No manual clicks
+                  needed.&rdquo;
                 </blockquote>
-                <cite>— Senior Data Engineer, SaaS company</cite>
+                <cite>— Data Engineer, Databricks team</cite>
               </div>
               <div className="landing-quote-card">
                 <blockquote>
-                  &ldquo;It caught a schema change before it hit our revenue
-                  dashboard. No rules, no setup — just worked.&rdquo;
+                  &ldquo;The SQL generator alone saves me 30 minutes every time
+                  there&apos;s a data quality issue.&rdquo;
                 </blockquote>
                 <cite>— Analytics Engineer, Scale-up</cite>
               </div>
               <div className="landing-quote-card">
                 <blockquote>
-                  &ldquo;We evaluated Monte Carlo. Unlockdb gave us 80% of the
-                  value in 5 minutes instead of 3 months.&rdquo;
+                  &ldquo;Finally a tool that explains WHY something changed —
+                  not just that it did. And I can ask follow-up questions.&rdquo;
                 </blockquote>
-                <cite>— Head of Data, B2B company</cite>
+                <cite>— Head of Data, B2B SaaS</cite>
               </div>
             </div>
             <p className="landing-quote-note">Early access quotes</p>
@@ -515,7 +617,7 @@ export default function LandingPage() {
         </section>
 
         <section className="landing-inner landing-cta" aria-labelledby="cta-title">
-          <h2 id="cta-title">Ready to see what&apos;s changing in your data?</h2>
+          <h2 id="cta-title">Talk to your data warehouse. Get answers in seconds.</h2>
           <div className="landing-cta-actions">
             <Link to="/" className="landing-btn landing-btn-primary">
               Try the demo free →
@@ -529,7 +631,7 @@ export default function LandingPage() {
           </div>
           <p className="landing-cta-note">
             No credit card. No rules to write. No agents to configure. Just
-            connect and let AI do the work.
+            connect and ask.
           </p>
         </section>
       </main>
