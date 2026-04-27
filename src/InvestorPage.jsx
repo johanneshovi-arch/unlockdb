@@ -1,15 +1,64 @@
 import { useEffect } from "react";
 import "./InvestorPage.css";
+import UnlockdbLogo from "./UnlockdbLogo.jsx";
 
 const ROADMAP = [
-  { id: "1", date: "May 2026", text: "Company founded. Detection engine build starts." },
-  { id: "2", date: "Jul–Aug 2026", text: "V1 PoC complete. Detection engine validated." },
-  { id: "3", date: "Sep–Oct 2026", text: "Snowflake + Databricks connectors live. First design partners." },
-  { id: "4", date: "Nov 2026", text: "Business Finland grant application (€50k)." },
-  { id: "5", date: "Jan 2027", text: "First paying customers. MRR: €2k" },
-  { id: "6", date: "May 2027", text: "Product-market fit signals. MRR: €8k" },
-  { id: "7", date: "Nov 2027", text: "Scaling GTM. MRR: €20k" },
-  { id: "8", date: "May 2028", text: "Seed VC round. MRR: €35k+ — Target raise: €2–3M" },
+  {
+    id: "1",
+    date: "May 2026",
+    title: "Company founded",
+    desc: "Detection engine build starts.",
+    icon: "🏗️",
+  },
+  {
+    id: "2",
+    date: "Jul–Aug 2026",
+    title: "V1 PoC complete",
+    desc: "Detection engine validated.",
+    icon: "🏗️",
+  },
+  {
+    id: "3",
+    date: "Sep–Oct 2026",
+    title: "Connectors & partners",
+    desc: "Snowflake + Databricks live. First design partners.",
+    icon: "🔌",
+  },
+  {
+    id: "4",
+    date: "Nov 2026",
+    title: "Business Finland",
+    desc: "Grant application (€50k).",
+    icon: "🏗️",
+  },
+  {
+    id: "5",
+    date: "Jan 2027",
+    title: "First revenue",
+    desc: "MRR: €2k",
+    icon: "👥",
+  },
+  {
+    id: "6",
+    date: "May 2027",
+    title: "PMF signals",
+    desc: "MRR: €8k",
+    icon: "📈",
+  },
+  {
+    id: "7",
+    date: "Nov 2027",
+    title: "Scale GTM",
+    desc: "MRR: €20k",
+    icon: "📈",
+  },
+  {
+    id: "8",
+    date: "May 2028",
+    title: "Seed + VC",
+    desc: "MRR: €35k+ — target raise: €2–3M",
+    icon: "🚀",
+  },
 ];
 
 const MRR_DATA = [
@@ -23,6 +72,13 @@ const MRR_DATA = [
 ];
 
 const MRR_MAX = 35000;
+
+const MARKET_SIZES = [
+  { year: "2024", value: 1.7, label: "$1.7B" },
+  { year: "2026", value: 3, label: "$3B", here: true },
+  { year: "2030", value: 10, label: "$10B" },
+];
+const MARKET_MAX = 10;
 
 function formatEur(n) {
   if (n === 0) return "€0";
@@ -41,10 +97,18 @@ export default function InvestorPage() {
   return (
     <div className="investor-page" lang="en">
       <header className="investor-hero" role="banner">
+        <div className="investor-hero-logo" aria-hidden="true">
+          <UnlockdbLogo />
+        </div>
         <h1>Unlockdb — The CO detector for your data warehouse</h1>
         <p className="investor-hero-sub">
           AI-native change intelligence for Snowflake and Databricks. Confidential —
           for investors only.
+        </p>
+        <p className="investor-hero-analogy">
+          Like a carbon monoxide detector — silent, invisible data drift is the most
+          dangerous kind. You can&apos;t see a column going from 4% null to 22% null.
+          Unlockdb catches it before your CEO does.
         </p>
       </header>
 
@@ -52,22 +116,144 @@ export default function InvestorPage() {
         <h2 id="sec-problem" className="investor-section-title">
           €500k of engineering payroll wasted per company, per year
         </h2>
-        <div className="investor-card-grid investor-stat">
-          <div className="investor-card">
-            <p>40–57% of data engineer time spent on data quality firefighting</p>
+        <div className="investor-compare" role="img" aria-label="Without vs with Unlockdb">
+          <div className="investor-compare-side investor-compare-side--bad">
+            <h3 className="investor-compare-label">Without Unlockdb</h3>
+            <ul className="investor-compare-list">
+              <li>
+                <span className="investor-compare-ico" aria-hidden="true">🔥</span>
+                <span>
+                  Data engineer spends 40–57% of time firefighting
+                </span>
+              </li>
+              <li>
+                <span className="investor-compare-ico" aria-hidden="true">😤</span>
+                <span>Business finds the problem 74% of the time</span>
+              </li>
+              <li>
+                <span className="investor-compare-ico" aria-hidden="true">💸</span>
+                <span>€500k payroll wasted/year</span>
+              </li>
+              <li>
+                <span className="investor-compare-ico" aria-hidden="true">❌</span>
+                <span>Unity: $110M loss from one bad-data incident</span>
+              </li>
+            </ul>
           </div>
-          <div className="investor-card">
-            <p>
-              74% of data issues found by business stakeholders, not the data
-              team
-            </p>
+          <div className="investor-compare-mid" aria-hidden="true">
+            <div className="investor-compare-arrow investor-compare-arrow--v">
+              <svg
+                className="investor-compare-arrow-svg"
+                viewBox="0 0 48 120"
+                width="48"
+                height="120"
+              >
+                <defs>
+                  <linearGradient
+                    id="vc-arrow-grad-v"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor="#5b21b6" />
+                    <stop offset="100%" stopColor="#7c3aed" />
+                  </linearGradient>
+                </defs>
+                <line
+                  x1="24"
+                  y1="8"
+                  x2="24"
+                  y2="100"
+                  stroke="url(#vc-arrow-grad-v)"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M 14 90 L 24 108 L 34 90"
+                  fill="none"
+                  stroke="#7c3aed"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <div className="investor-compare-arrow investor-compare-arrow--h">
+              <svg
+                className="investor-compare-arrow-h-svg"
+                viewBox="0 0 160 32"
+                width="160"
+                height="32"
+              >
+                <line
+                  x1="8"
+                  y1="16"
+                  x2="140"
+                  y2="16"
+                  stroke="#7c3aed"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M 130 8 L 148 16 L 130 24"
+                  fill="none"
+                  stroke="#7c3aed"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <p className="investor-compare-mid-txt">Unlock</p>
           </div>
-          <div className="investor-card">
-            <p>Unity lost $110M from a single bad-data incident (Q1 2022)</p>
+          <div className="investor-compare-side investor-compare-side--good">
+            <h3 className="investor-compare-label">With Unlockdb</h3>
+            <ul className="investor-compare-list">
+              <li>
+                <span className="investor-compare-ico" aria-hidden="true">✅</span>
+                <span>Drift detected automatically</span>
+              </li>
+              <li>
+                <span className="investor-compare-ico" aria-hidden="true">⚡</span>
+                <span>Alert in Slack within minutes</span>
+              </li>
+              <li>
+                <span className="investor-compare-ico" aria-hidden="true">🎯</span>
+                <span>AI explains what happened and why</span>
+              </li>
+              <li>
+                <span className="investor-compare-ico" aria-hidden="true">💰</span>
+                <span>20–60x ROI at €29/month</span>
+              </li>
+            </ul>
           </div>
-          <div className="investor-card">
-            <p>Market: $3B today → $10B by 2030 (15–21% CAGR)</p>
-          </div>
+        </div>
+      </section>
+
+      <section className="investor-block" aria-labelledby="sec-market">
+        <h2 id="sec-market" className="investor-section-h">
+          Data Quality &amp; Observability Market
+        </h2>
+        <p className="investor-market-source">Source: multiple analyst sources</p>
+        <div className="investor-market" role="img" aria-label="Market size 2024 to 2030">
+          {MARKET_SIZES.map((m) => {
+            const h = MARKET_MAX <= 0 ? 0 : (m.value / MARKET_MAX) * 100;
+            return (
+              <div
+                className={
+                  "investor-market-item" + (m.here ? " investor-market-item--here" : "")
+                }
+                key={m.year}
+              >
+                <div className="investor-market-bubble-wrap">
+                  <div
+                    className="investor-market-bubble"
+                    style={{ height: `${Math.max(8, h)}%` }}
+                  />
+                </div>
+                <div className="investor-market-year">{m.year}</div>
+                <div className="investor-market-val">{m.label}</div>
+                {m.here ? <div className="investor-market-pill">We are here</div> : null}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -75,7 +261,49 @@ export default function InvestorPage() {
         <h2 id="sec-solution" className="investor-section-title">
           Drift detection that works. Alerts you&apos;ll actually act on.
         </h2>
-        <div className="investor-card-grid">
+
+        <div
+          className="investor-arch"
+          role="img"
+          aria-label="Snowflake and Databricks connect to the Unlockdb engine, which routes to Slack, Jira, PagerDuty, and webhooks"
+        >
+          <div className="investor-arch-grid">
+            <div className="investor-arch-g11 investor-arch-box">Snowflake</div>
+            <div className="investor-arch-ah g12" aria-hidden="true">
+              →
+            </div>
+            <div className="investor-arch-eng">
+              <span className="investor-arch-eng-in">Unlockdb Engine</span>
+              <span className="investor-arch-eng-sub">AI-native detection engine</span>
+            </div>
+            <div className="investor-arch-ah g14" aria-hidden="true">
+              →
+            </div>
+            <div className="investor-arch-g15 investor-arch-box">Slack</div>
+            <div className="investor-arch-g21 investor-arch-box">Databricks</div>
+            <div className="investor-arch-ah g22" aria-hidden="true">
+              →
+            </div>
+            <div className="investor-arch-ah g24" aria-hidden="true">
+              →
+            </div>
+            <div className="investor-arch-g25 investor-arch-box">Jira</div>
+            <div className="investor-arch-sp g31" aria-hidden="true" />
+            <div className="investor-arch-sp g32" aria-hidden="true" />
+            <div className="investor-arch-ah g34" aria-hidden="true">
+              →
+            </div>
+            <div className="investor-arch-g35 investor-arch-box">PagerDuty</div>
+            <div className="investor-arch-sp g41" aria-hidden="true" />
+            <div className="investor-arch-sp g42" aria-hidden="true" />
+            <div className="investor-arch-ah g44" aria-hidden="true">
+              →
+            </div>
+            <div className="investor-arch-g45 investor-arch-box">Webhook</div>
+          </div>
+        </div>
+
+        <div className="investor-card-grid investor-solution-grid">
           <div className="investor-card">
             <p>
               Detects schema changes, null-rate shifts, distribution changes
@@ -128,18 +356,19 @@ export default function InvestorPage() {
           From PoC to VC-ready in 24 months
         </h2>
         <div className="investor-tl-scroll">
-          <div className="investor-tl-row">
-            {ROADMAP.map((item, i) => (
-              <div className="investor-tl-seg" key={item.id}>
-                <div className="investor-tl-head">
-                  <div className="investor-tl-dot" aria-hidden="true" />
-                  {i < ROADMAP.length - 1 ? <div className="investor-tl-conn" /> : null}
+          <div className="investor-milestone-row">
+            {ROADMAP.map((item) => (
+              <article className="investor-milestone-card" key={item.id}>
+                <div className="investor-milestone-top">
+                  <div className="investor-milestone-dot" aria-hidden="true" />
+                  <div className="investor-milestone-date">{item.date}</div>
                 </div>
-                <div className="investor-tl-body">
-                  <div className="investor-tl-date">{item.date}</div>
-                  <p className="investor-tl-text">{item.text}</p>
+                <div className="investor-milestone-ico" aria-hidden="true">
+                  {item.icon}
                 </div>
-              </div>
+                <h3 className="investor-milestone-title">{item.title}</h3>
+                <p className="investor-milestone-desc">{item.desc}</p>
+              </article>
             ))}
           </div>
         </div>
@@ -150,21 +379,19 @@ export default function InvestorPage() {
           Path to €35k MRR
         </h2>
         <div className="investor-mrr">
-          <div className="investor-mrr-bars" role="img" aria-label="MRR bar chart 2026 to 2028">
+          <div
+            className="investor-mrr-bars"
+            role="img"
+            aria-label="MRR bar chart 2026 to 2028"
+          >
             {MRR_DATA.map((d) => {
-              const pct =
-                MRR_MAX <= 0 ? 0 : (d.value / MRR_MAX) * 100;
+              const pct = MRR_MAX <= 0 ? 0 : (d.value / MRR_MAX) * 100;
               const barH =
-                d.value === 0
-                  ? "2px"
-                  : `${Math.max(1, pct)}%`;
+                d.value === 0 ? "2px" : `${Math.max(1, pct)}%`;
               return (
                 <div className="investor-mrr-col" key={d.label}>
                   <div className="investor-mrr-bar-h">
-                    <div
-                      className="investor-mrr-bar"
-                      style={{ height: barH }}
-                    />
+                    <div className="investor-mrr-bar" style={{ height: barH }} />
                   </div>
                   <div className="investor-mrr-meta">
                     <div className="investor-mrr-label">{d.label}</div>
