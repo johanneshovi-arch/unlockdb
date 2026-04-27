@@ -80,6 +80,19 @@ const MARKET_SIZES = [
 ];
 const MARKET_MAX = 10;
 
+/** Valuation chart (illustrative); `m` = pre-money in millions of EUR for bar height. */
+const VALUATION_TRAJECTORY = [
+  { id: "v-angel", stage: "Angel", valLabel: "€500k", year: "2026", m: 0.5 },
+  { id: "v-seed", stage: "Seed", valLabel: "€12M", year: "2027", m: 12 },
+  { id: "v-a", stage: "Series A", valLabel: "€90M", year: "2028–2029", m: 90 },
+];
+const VAL_CHART_MAX_S = Math.sqrt(90);
+
+function valBarHeightPctM(m) {
+  if (m <= 0) return "2%";
+  return `${(Math.sqrt(m) / VAL_CHART_MAX_S) * 100}%`;
+}
+
 function formatEur(n) {
   if (n === 0) return "€0";
   return "€" + n.toLocaleString("en-IE", { maximumFractionDigits: 0 });
@@ -489,15 +502,6 @@ export default function InvestorPage() {
               <li>Committed to this round</li>
             </ul>
           </div>
-          <div className="investor-card investor-team-card">
-            <h3>Harri Siepp</h3>
-            <p className="role">Advisor &amp; Angel Investor (pending)</p>
-            <ul>
-              <li>Founded and took Witted public</li>
-              <li>Deep network in Finnish data/tech ecosystem</li>
-              <li>In conversation</li>
-            </ul>
-          </div>
         </div>
       </section>
 
@@ -522,6 +526,89 @@ export default function InvestorPage() {
         >
           Request full deck → johannes@unlockdb.com
         </a>
+      </section>
+
+      <section className="investor-block" aria-labelledby="sec-funding-journey">
+        <h2 id="sec-funding-journey" className="investor-section-title">
+          The upside — funding journey
+        </h2>
+        <p className="investor-funding-lead">
+          Early investors get in at ground floor. Here&apos;s how the company
+          grows from here.
+        </p>
+
+        <div className="investor-funding-grid">
+          <article
+            className="investor-funding-card investor-funding-card--now"
+          >
+            <div className="investor-funding-head-row">
+              <h3 className="investor-funding-name">Angel Round</h3>
+              <span className="investor-funding-badge">NOW</span>
+            </div>
+            <div className="investor-funding-amount">€200k</div>
+            <ul className="investor-funding-facts">
+              <li>Instrument: SAFE</li>
+              <li>Stage: Pre-product</li>
+            </ul>
+            <p className="investor-funding-tag">Ground floor entry</p>
+          </article>
+          <article className="investor-funding-card">
+            <div className="investor-funding-head-row">
+              <h3 className="investor-funding-name">Seed Round</h3>
+              <span className="investor-funding-badge investor-funding-badge--muted">2027</span>
+            </div>
+            <div className="investor-funding-amount">€2.5–3.5M</div>
+            <ul className="investor-funding-facts">
+              <li>Pre-money valuation: €10–15M</li>
+              <li>MRR at round: €11k/month</li>
+              <li>Stage: Product-market fit proven</li>
+            </ul>
+            <p className="investor-funding-tag">First institutional round</p>
+          </article>
+          <article className="investor-funding-card">
+            <div className="investor-funding-head-row">
+              <h3 className="investor-funding-name">Series A</h3>
+              <span className="investor-funding-badge investor-funding-badge--muted">
+                2028–2029
+              </span>
+            </div>
+            <div className="investor-funding-amount">€5–10M</div>
+            <ul className="investor-funding-facts">
+              <li>Pre-money valuation: €80–100M</li>
+              <li>MRR at round: €80–100k/month</li>
+              <li>Stage: Scaling European market</li>
+            </ul>
+            <p className="investor-funding-tag">Category leader</p>
+          </article>
+        </div>
+
+        <h3 className="investor-val-h">Valuation trajectory</h3>
+        <div
+          className="investor-val-chart"
+          role="img"
+          aria-label="Illustrative pre-money valuation steps: 500k, 12M, 90M"
+        >
+          <div className="investor-val-bars">
+            {VALUATION_TRAJECTORY.map((v) => (
+              <div className="investor-val-col" key={v.id}>
+                <div className="investor-val-bar-h">
+                  <div
+                    className="investor-val-bar"
+                    style={{ height: valBarHeightPctM(v.m) }}
+                  />
+                </div>
+                <div className="investor-val-meta">
+                  <div className="investor-val-stage">{v.stage}</div>
+                  <div className="investor-val-amount">{v.valLabel}</div>
+                  <div className="investor-val-year">{v.year}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="investor-val-disclaim">
+          Illustrative projections only. Not a guarantee of future performance.
+        </p>
       </section>
 
       <footer className="investor-foot">

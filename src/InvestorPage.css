@@ -770,3 +770,207 @@
   margin: 0 0 0.4rem;
 }
 
+/* Funding journey (after the ask) */
+.investor-funding-lead {
+  margin: -0.4rem 0 1.35rem;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #8c8c8c;
+  max-width: 34em;
+}
+
+.investor-funding-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 2rem;
+  align-items: stretch;
+}
+
+@media (max-width: 860px) {
+  .investor-funding-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.investor-funding-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--vc-card);
+  border: 1px solid var(--vc-border);
+  border-radius: 10px;
+  padding: 1rem 1rem 0.9rem;
+  min-height: 100%;
+}
+
+.investor-funding-card--now {
+  border: 1px solid var(--vc-accent);
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.2), 0 8px 32px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(165deg, #14111a 0%, #0f0f0f 100%);
+}
+
+.investor-funding-head-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.investor-funding-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e8e8e8;
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.investor-funding-badge {
+  flex: 0 0 auto;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #0a0a0a;
+  background: #7c3aed;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.investor-funding-badge--muted {
+  color: #b8b8b8;
+  background: #1e1e1e;
+  border: 1px solid #2e2e2e;
+  font-weight: 700;
+}
+
+.investor-funding-amount {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.5rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.investor-funding-facts {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  flex: 1 1 auto;
+}
+
+.investor-funding-facts li {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #9a9a9a;
+  margin-bottom: 0.3rem;
+}
+
+.investor-funding-facts li:last-child {
+  margin-bottom: 0;
+}
+
+.investor-funding-tag {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #7c3aed;
+  font-weight: 500;
+  padding-top: 0.35rem;
+  border-top: 1px solid #242424;
+}
+
+/* Valuation trajectory (illustrative) */
+.investor-val-h {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #d8d8d8;
+  margin: 0 0 0.6rem;
+  letter-spacing: -0.02em;
+}
+
+.investor-val-chart {
+  width: 100%;
+  margin: 0 0 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
+}
+
+.investor-val-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  height: 150px;
+  min-width: min(380px, 100%);
+  padding: 0 0.15rem;
+}
+
+.investor-val-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.investor-val-bar-h {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 3.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+}
+
+.investor-val-bar {
+  width: 100%;
+  min-height: 2px;
+  background: linear-gradient(180deg, #8b5cf6 0%, #5b21b6 100%);
+  border-radius: 5px 5px 0 0;
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.2);
+}
+
+.investor-val-meta {
+  text-align: center;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.investor-val-stage {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #a8a8a8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.15rem;
+}
+
+.investor-val-amount {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #e0e0e0;
+  margin-bottom: 0.1rem;
+}
+
+.investor-val-year {
+  font-size: 0.7rem;
+  color: #6e6e6e;
+  font-weight: 500;
+}
+
+.investor-val-disclaim {
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: #5c5c5c;
+  margin: 0.4rem 0 0;
+  max-width: 32em;
+}
+
